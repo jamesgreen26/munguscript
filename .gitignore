@@ -1,0 +1,8 @@
+.gradle/
+.idea/
+build/
+out/
+bin/
+*.iml
+**/.DS_Store
+run/output.txt

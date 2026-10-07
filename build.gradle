@@ -1,0 +1,66 @@
+plugins {
+    id 'java-library'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+    // Brigadier is published by Mojang, not to Maven Central.
+    maven {
+        url = 'https://libraries.minecraft.net'
+        content { includeGroup 'com.mojang' }
+    }
+}
+
+dependencies {
+    // In a Minecraft host the game already provides Brigadier. Build against the oldest version we
+    // support (1.20.1 ships 1.1.8; 1.21.1 ships 1.3.10) so nothing newer, such as ContextChain or
+    // ArgumentType.parse(reader, source), is used by accident.
+    api 'com.mojang:brigadier:1.1.8'
+    compileOnlyApi 'org.jetbrains:annotations:24.1.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testCompileOnly 'org.jetbrains:annotations:24.1.0'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// Brigadier declares no module name, so Gradle would leave it off the module path and module-info's
+// `requires brigadier` would not resolve. Put everything on the module path; Brigadier becomes the
+// automatic module `brigadier`, after its jar.
+tasks.named('compileJava', JavaCompile) {
+    modularity.inferModulePath = false
+    doFirst {
+        options.compilerArgs += ['--module-path', classpath.asPath]
+        classpath = files()
+    }
+}
+
+tasks.named('javadoc', Javadoc) {
+    modularity.inferModulePath = false
+    doFirst {
+        options.modulePath = classpath.files.toList()
+        classpath = files()
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// `./gradlew run` runs run/main.munguscript; `./gradlew run --args=path/to/other.munguscript` runs another.
+application {
+    mainClass = 'g_mungus.munguscript.debug.ScriptDebugMain'
+}
+
+tasks.named('run') {
+    workingDir = projectDir
+}
