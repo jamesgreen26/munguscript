@@ -49,7 +49,6 @@ if text lines > 0 write_file value_of(text <+ "first line\\n")
   model it runs in.
 - `design_docs/SCRIPT_ENGINE_TREE.md`: how the engine builds its Brigadier tree, traced through
   one line.
-- `design_docs/SCRIPT_TREE_CODEC.md`: what the library encodes to send its tree to a client.
 
 ## Running a script
 
