@@ -38,7 +38,8 @@ public interface ScriptView<S> {
 
     /**
      * Suggestions at {@code cursor} in a command as the player is writing it. When a script's
-     * pre-processing is given, its tokens are offered as well.
+     * pre-processing is given, its tokens are offered as well. A cursor outside the command is taken
+     * to be at its nearer end.
      */
     CompletableFuture<Suggestions> suggest(String command, int cursor, S source,
                                            @Nullable CommandPreProcessor.Prepared preProcessing);
@@ -69,7 +70,8 @@ public interface ScriptView<S> {
     /**
      * Suggestions at {@code cursor} in an expression standing alone, as {@link #suggest} gives them
      * inside a {@code value_of(}: an expression as {@link ScriptEngine#evaluate} is given it,
-     * starting with a getter or an alias. Ranges are in {@code expression}.
+     * starting with a getter or an alias. Ranges are in {@code expression}. A cursor outside it is
+     * taken to be at its nearer end.
      *
      * @param type          the type the expression should give: only what can lead to it is
      *                      offered. Null for any type.

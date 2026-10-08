@@ -112,7 +112,7 @@ final class ViewImpl<S> implements ScriptView<S> {
     @Override
     public CompletableFuture<Suggestions> suggest(String command, int cursor, S source,
                                                   CommandPreProcessor.@Nullable Prepared preProcessing) {
-        String typed = command.substring(0, cursor);
+        String typed = typedBefore(command, cursor);
         Rewritten text = preProcessing == null ? Rewritten.unchanged(typed) : preProcess(typed, preProcessing, source);
         Tokens tokens = preProcessing == null ? Tokens.NONE : new Tokens(preProcessing.tokens());
         List<Suggestion> suggestions = new ArrayList<>();
@@ -130,7 +130,7 @@ final class ViewImpl<S> implements ScriptView<S> {
         // Pre-processors rewrite commands, where an expression starts inside a value_of(, so the
         // expression is suggested for inside one, with nothing to close.
         int offset = ValueOf.OPEN.length();
-        String typed = ValueOf.OPEN + expression.substring(0, cursor);
+        String typed = ValueOf.OPEN + typedBefore(expression, cursor);
         Rewritten text = preProcessing == null ? Rewritten.unchanged(typed) : preProcess(typed, preProcessing, source);
         Tokens tokens = preProcessing == null ? Tokens.NONE : new Tokens(preProcessing.tokens());
         List<Suggestion> suggestions = new ArrayList<>();
@@ -141,6 +141,11 @@ final class ViewImpl<S> implements ScriptView<S> {
                     Math.max(range.getEnd() - offset, 0)), suggestion.getText(), suggestion.getTooltip()));
         }
         return CompletableFuture.completedFuture(Suggester.collect(expression, suggestions));
+    }
+
+    /** What is written before {@code cursor}, which is kept within the text: before it is nothing, past it is all. */
+    private static String typedBefore(String text, int cursor) {
+        return text.substring(0, Math.max(0, Math.min(cursor, text.length())));
     }
 
     @Override

@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.StringRange;
 import com.mojang.brigadier.suggestion.Suggestion;
+import com.mojang.brigadier.suggestion.Suggestions;
 import g_mungus.munguscript.conformance.TestTypes.Point;
 import g_mungus.munguscript.engine.ScriptView;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
@@ -125,6 +126,21 @@ class SuggestionTest {
         assertEquals(1, suggestions.size(), suggestions.toString());
         assertEquals("plus", suggestions.get(0).getText());
         assertEquals(StringRange.between(5, 7), suggestions.get(0).getRange());
+    }
+
+    @EngineTest
+    void aCursorOutsideTheTextIsAtItsNearerEnd(Harness h) {
+        List<String> atEnd = texts(h.engine.suggest("paint b", 7, h.source(), null).join());
+        assertEquals(atEnd, texts(h.engine.suggest("paint b", 100, h.source(), null).join()));
+        assertEquals(texts(h.engine.suggest("paint b", 0, h.source(), null).join()),
+                texts(h.engine.suggest("paint b", -3, h.source(), null).join()));
+        assertEquals(List.of("level"), texts(h.engine.suggestExpression("lev", 100, h.source(), null, null).join()));
+        assertEquals(texts(h.engine.suggestExpression("lev", 0, h.source(), null, null).join()),
+                texts(h.engine.suggestExpression("lev", -1, h.source(), null, null).join()));
+    }
+
+    private static List<String> texts(Suggestions suggestions) {
+        return suggestions.getList().stream().map(Suggestion::getText).toList();
     }
 
     @EngineTest
