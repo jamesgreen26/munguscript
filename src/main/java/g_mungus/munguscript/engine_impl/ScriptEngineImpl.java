@@ -6,6 +6,7 @@ import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.Highlight;
 import g_mungus.munguscript.engine.ScriptEngine;
 import g_mungus.munguscript.engine.ScriptHost;
+import g_mungus.munguscript.engine.Vocabulary;
 import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.engine.host.Restriction;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
@@ -159,6 +160,11 @@ final class ScriptEngineImpl<S> implements ScriptEngine<S> {
     public Optional<ScriptFailure> check(String command, S source,
                                          CommandPreProcessor.@Nullable Prepared preProcessing) {
         return view.check(command, source, preProcessing);
+    }
+
+    @Override
+    public Vocabulary vocabulary() {
+        return view.vocabulary();
     }
 
     @Override

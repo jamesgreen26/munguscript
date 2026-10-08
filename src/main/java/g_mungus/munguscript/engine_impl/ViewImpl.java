@@ -12,6 +12,7 @@ import com.mojang.brigadier.tree.RootCommandNode;
 import g_mungus.munguscript.engine.Highlight;
 import g_mungus.munguscript.engine.ScriptView;
 import g_mungus.munguscript.engine.ScriptViewHost;
+import g_mungus.munguscript.engine.Vocabulary;
 import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.engine.host.Restriction;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
@@ -37,6 +38,7 @@ import g_mungus.munguscript.engine_impl.tree.Conversions;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
 import g_mungus.munguscript.engine_impl.tree.TypeGraph;
 import g_mungus.munguscript.engine_impl.tree.TypeNames;
+import g_mungus.munguscript.engine_impl.tree.VocabularyReader;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
 import g_mungus.munguscript.language.type.ScriptType;
 import g_mungus.munguscript.language.type.TypeKey;
@@ -240,6 +242,11 @@ final class ViewImpl<S> implements ScriptView<S> {
                 .rewrite(0, word, new Rewritten(head.command(), head.sourceMap()))
                 .keep(word, typed.length())
                 .build();
+    }
+
+    @Override
+    public Vocabulary vocabulary() {
+        return VocabularyReader.read(tree, types.values());
     }
 
     @Override

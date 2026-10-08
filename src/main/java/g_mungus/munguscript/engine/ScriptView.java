@@ -103,6 +103,9 @@ public interface ScriptView<S> {
      */
     Optional<ScriptFailure> check(String command, S source, @Nullable CommandPreProcessor.Prepared preProcessing);
 
+    /** The words the language has, for showing a person what they can write. */
+    Vocabulary vocabulary();
+
     /** Answers whether expressions read as a type, for {@code source}. */
     ExpressionProbe probe(S source);
 
