@@ -76,7 +76,7 @@ public final class ValueOrLiteralArgument implements ArgumentType<Object> {
         return lookup.view().suggest(this, context, builder);
     }
 
-    /** What the written forms of these slots suggest: whatever their literal arguments do, and {@code value_of(}. */
+    /** What the literal arguments of these slots suggest. */
     public static <S> List<Suggestion> written(Collection<ValueOrLiteralArgument> slots, CommandContext<S> context,
                                                SuggestionsBuilder builder) {
         List<Suggestion> suggestions = new ArrayList<>();
@@ -84,11 +84,23 @@ public final class ValueOrLiteralArgument implements ArgumentType<Object> {
             SuggestionsBuilder own = new SuggestionsBuilder(builder.getInput(), builder.getStart());
             suggestions.addAll(slot.literal.listSuggestions(context, own).join().getList());
         }
-        if (ValueOf.OPEN.startsWith(builder.getRemaining().toLowerCase(Locale.ROOT))) {
-            suggestions.add(new Suggestion(StringRange.between(builder.getStart(), builder.getInput().length()),
-                    ValueOf.OPEN));
-        }
         return suggestions;
+    }
+
+    /**
+     * {@code value_of(}, if what has been typed could start it.
+     *
+     * @param alone whether nothing else is suggested. A client shows the slot's hint
+     *              ({@code <coordinates>}) only when there are no suggestions, and the hint says more
+     *              than {@code value_of(} does, so it is not offered alone until it has been started.
+     */
+    public static Optional<Suggestion> opening(SuggestionsBuilder builder, boolean alone) {
+        String typed = builder.getRemaining().toLowerCase(Locale.ROOT);
+        if (!ValueOf.OPEN.startsWith(typed) || alone && typed.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new Suggestion(StringRange.between(builder.getStart(), builder.getInput().length()),
+                ValueOf.OPEN));
     }
 
     @Override

@@ -28,6 +28,14 @@ class SuggestionTest {
     }
 
     @EngineTest
+    void valueOfIsOnlySuggestedAloneOnceItHasBeenStarted(Harness h) {
+        // Nothing else to suggest for an int: an empty list leaves the client showing the slot's hint.
+        assertEquals(List.of(), h.suggest("set_level ", null));
+        assertTrue(h.suggest("set_level v", null).contains("value_of("));
+        assertTrue(h.suggest("paint ", null).containsAll(List.of("red", "value_of(")));
+    }
+
+    @EngineTest
     void conditionsAreSuggestedFromGettersThatCanReachABoolean(Harness h) {
         List<String> afterIf = h.suggest("if ", null);
         assertTrue(afterIf.containsAll(List.of("here", "level", "message")), afterIf.toString());

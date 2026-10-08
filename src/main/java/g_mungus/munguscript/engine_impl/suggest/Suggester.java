@@ -147,6 +147,7 @@ public final class Suggester<S> {
         List<Suggestion> suggestions = new ArrayList<>(ValueOrLiteralArgument.written(slots, context, builder));
         suggestions.addAll(tokens.arguments(StringRange.between(builder.getStart(), builder.getInput().length()),
                 builder.getRemaining(), targets));
+        ValueOrLiteralArgument.opening(builder, suggestions.isEmpty()).ifPresent(suggestions::add);
         return suggestions;
     }
 
