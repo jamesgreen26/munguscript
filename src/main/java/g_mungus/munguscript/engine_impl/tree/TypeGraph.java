@@ -34,11 +34,25 @@ public final class TypeGraph {
 
     /** The graph a tree's value chains describe. */
     public static TypeGraph of(ScriptTree<?> tree) {
+        return of(tree, true);
+    }
+
+    /**
+     * The graph a tree's value chains describe without converting a value: leaving out the words
+     * a chain holds only through a conversion. Add no conversion edges to it.
+     */
+    public static TypeGraph withoutConversions(ScriptTree<?> tree) {
+        return of(tree, false);
+    }
+
+    private static <S> TypeGraph of(ScriptTree<S> tree, boolean converted) {
         Map<TypeKey, Set<TypeKey>> edges = new HashMap<>();
         tree.valueChains().forEach((type, chain) -> {
             Set<TypeKey> outputs = edges.computeIfAbsent(type, key -> new HashSet<>());
-            for (CommandNode<?> mapper : chain.getChildren()) {
-                ScriptTree.outputOf(mapper).ifPresent(outputs::add);
+            for (CommandNode<S> mapper : chain.getChildren()) {
+                if (converted || !tree.isConverted(mapper)) {
+                    ScriptTree.outputOf(mapper).ifPresent(outputs::add);
+                }
             }
         });
         return new TypeGraph(edges);

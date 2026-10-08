@@ -70,7 +70,8 @@ final class ViewImpl<S> implements ScriptView<S> {
         Conversions conversions = Conversions.of(this.types.values());
         TypeGraph graph = TypeGraph.of(tree).with(conversions.edges());
         this.expressions = new ExpressionReader<>(tree, graph, conversions, names);
-        this.suggester = new Suggester<>(tree, graph, expressions, commands, new RestrictionIndex<>(host, restrictions));
+        this.suggester = new Suggester<>(tree, graph, TypeGraph.withoutConversions(tree), expressions, commands,
+                new RestrictionIndex<>(host, restrictions));
         this.arguments = new ViewArguments<>(tree, suggester, expressions);
     }
 

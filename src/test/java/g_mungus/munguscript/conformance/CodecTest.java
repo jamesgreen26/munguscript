@@ -44,7 +44,8 @@ class CodecTest {
             "if level is_positive paint red else paint blue", "paint red else paint blue",
             "if here x == 7 log a else if level > 0 log b else log c", "if level log x", "log value_of(message matches \"h\" as_string)",
             "frobnicate", "move value_of(", "configure value_of(lev", "log value_of(favourite)",
-            "if level to_celsius rounded_down > 3 log x", "log value_of(level + \"x\")");
+            "if level to_celsius rounded_down > 3 log x", "log value_of(level + \"x\")",
+            "log value_of(counter lines)");
 
     private static byte[] encode(Harness h, TestHostCodec host) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -89,6 +90,15 @@ class CodecTest {
                 assertEquals(suggest(h.engine, h, typed), suggest(client, h, typed), "'" + typed + "'");
             }
         }
+    }
+
+    @EngineTest
+    void aDecodedViewKnowsWhichWordsAreThereOnlyThroughAConversion(Harness h) throws IOException {
+        ScriptView<TestHost.Source> client = roundTrip(h);
+        List<String> afterCelsius = suggest(client, h, "if level to_celsius ");
+        assertTrue(afterCelsius.contains("warm"), afterCelsius.toString());
+        assertFalse(afterCelsius.contains(">"), afterCelsius.toString());
+        assertTrue(suggest(client, h, "if level to_celsius >").contains(">"));
     }
 
     @EngineTest

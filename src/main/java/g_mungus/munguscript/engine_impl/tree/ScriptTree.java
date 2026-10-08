@@ -6,11 +6,14 @@ import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.language.type.TypeKey;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The engine's nodes in one tree, and what their shape says about the language: which words are
@@ -29,6 +32,7 @@ import java.util.Optional;
  *   executor &lt;argument&gt;     else -&gt; script
  * value                      every getter -&gt; value/&lt;type&gt;
  * value/&lt;type&gt;              every mapper from the type -&gt; value/&lt;output&gt;
+ * converted/&lt;chain&gt;         the words &lt;chain&gt; holds only through a conversion: the same nodes
  * </pre>
  */
 public final class ScriptTree<S> {
@@ -37,14 +41,24 @@ public final class ScriptTree<S> {
     private final CommandNode<S> value;
     private final Map<TypeKey, CommandNode<S>> valueChains;
     private final Map<TypeKey, CommandNode<S>> conditionChains;
+    private final List<CommandNode<S>> convertedLists;
+    private final Set<CommandNode<S>> converted = Collections.newSetFromMap(new IdentityHashMap<>());
 
+    /**
+     * @param convertedLists the nodes that list, as their children, the words chain nodes hold only
+     *                       through a conversion
+     */
     public ScriptTree(CommandNode<S> script, CommandNode<S> condition, CommandNode<S> value,
-                      Map<TypeKey, CommandNode<S>> valueChains, Map<TypeKey, CommandNode<S>> conditionChains) {
+                      Map<TypeKey, CommandNode<S>> valueChains, Map<TypeKey, CommandNode<S>> conditionChains,
+                      Collection<CommandNode<S>> convertedLists) {
         this.script = script;
         this.condition = condition;
         this.value = value;
         this.valueChains = Map.copyOf(valueChains);
         this.conditionChains = Map.copyOf(conditionChains);
+        this.convertedLists = List.copyOf(convertedLists);
+        // By identity: the same word in another chain, or the type's own, is not converted.
+        convertedLists.forEach(list -> converted.addAll(list.getChildren()));
     }
 
     /**
@@ -55,12 +69,17 @@ public final class ScriptTree<S> {
     public static <S> ScriptTree<S> find(CommandNode<S> graftedUnder) {
         Map<TypeKey, CommandNode<S>> valueChains = new LinkedHashMap<>();
         Map<TypeKey, CommandNode<S>> conditionChains = new LinkedHashMap<>();
+        List<CommandNode<S>> convertedLists = new ArrayList<>();
         for (CommandNode<S> child : graftedUnder.getChildren()) {
+            if (NodeNames.isConverted(child.getName())) {
+                convertedLists.add(child);
+                continue;
+            }
             NodeNames.chainType(child.getName()).ifPresent(type ->
                     (NodeNames.isValueChain(child.getName()) ? valueChains : conditionChains).put(type, child));
         }
         return new ScriptTree<>(require(graftedUnder, NodeNames.SCRIPT), require(graftedUnder, NodeNames.CONDITION),
-                require(graftedUnder, NodeNames.VALUE), valueChains, conditionChains);
+                require(graftedUnder, NodeNames.VALUE), valueChains, conditionChains, convertedLists);
     }
 
     private static <S> CommandNode<S> require(CommandNode<S> parent, String name) {
@@ -77,7 +96,13 @@ public final class ScriptTree<S> {
         List<CommandNode<S>> roots = new ArrayList<>(List.of(script, condition, value));
         roots.addAll(valueChains.values());
         roots.addAll(conditionChains.values());
+        roots.addAll(convertedLists);
         return roots;
+    }
+
+    /** Whether {@code word}, a mapper in a chain, is there only through a conversion. */
+    public boolean isConverted(CommandNode<S> word) {
+        return converted.contains(word);
     }
 
     public CommandNode<S> script() {

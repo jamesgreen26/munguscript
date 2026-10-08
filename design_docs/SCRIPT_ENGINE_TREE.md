@@ -33,6 +33,8 @@ munguscript:condition/<type>     mappers from <type> that can still lead to a bo
                                  for boolean, a copy of every executor, followed by else
 munguscript:value                every getter, inside value_of(...)
 munguscript:value/<type>         every mapper from <type>
+munguscript:converted/<chain>    the words <chain> holds only through a conversion (§7): the same
+                                 nodes, never parsed through
 ```
 
 **Chain nodes** are the core idea. `munguscript:value/script:int` means "the value so far is an
@@ -184,6 +186,11 @@ and a view over a received tree both work them out from the types they were give
   nearest type it is usable as (`Conversions.best`), and `Evaluator` converts the result. A string is
   the last resort: it is chosen only when the value is usable as none of the other types. Among
   overloads, a `value_of` goes to the variants that take the type it is read as (§6).
+- **Suggestions.** Until a word has been started, `Suggester` only offers what works without a
+  conversion: not the copied mappers, and not words that only lead to the type wanted through a
+  conversion (`TypeGraph.withoutConversions`). Once a word has been started, it is offered like any
+  other. The copies are told apart by the `munguscript:converted/<chain>` nodes, which list them as
+  their children. The codec keeps node identity, so a client's view tells them apart the same way.
 
 ## 8. Where to Look
 

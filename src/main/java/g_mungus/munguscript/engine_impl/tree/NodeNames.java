@@ -21,6 +21,8 @@ public final class NodeNames {
     /** Where a {@code value_of(...)} expression starts: every getter. */
     public static final String VALUE = PREFIX + "value";
 
+    private static final String CONVERTED = PREFIX + "converted" + CHAIN_SEPARATOR;
+
     public static final String IF = "if";
     public static final String UNLESS = "unless";
     public static final String ELSE = "else";
@@ -36,6 +38,18 @@ public final class NodeNames {
     /** The node a condition continues from when its value is of {@code type}. */
     public static String conditionChain(TypeKey type) {
         return CONDITION + CHAIN_SEPARATOR + type;
+    }
+
+    /**
+     * The node that lists the words a chain node holds only through a conversion: the same nodes,
+     * as its children. It is never parsed through; it is how a view tells those words apart.
+     */
+    public static String converted(String chain) {
+        return CONVERTED + chain;
+    }
+
+    public static boolean isConverted(String name) {
+        return name.startsWith(CONVERTED);
     }
 
     public static boolean isValueChain(String name) {

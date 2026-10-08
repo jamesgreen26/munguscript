@@ -113,7 +113,9 @@ public final class TreeBuilder<S> {
         inheritMappers(valueChain, conditionChain);
         script.addChild(new ScriptLiteralNode<>(NodeNames.IF, null, condition, actions.startCondition(false)));
         script.addChild(new ScriptLiteralNode<>(NodeNames.UNLESS, null, condition, actions.startCondition(true)));
-        return new ScriptTree<>(script, condition, value, valueChains, conditionChains);
+        List<CommandNode<S>> convertedLists = new ArrayList<>(valueChain.converted.values());
+        convertedLists.addAll(conditionChain.converted.values());
+        return new ScriptTree<>(script, condition, value, valueChains, conditionChains, convertedLists);
     }
 
     /**
@@ -164,6 +166,8 @@ public final class TreeBuilder<S> {
         private final Map<TypeKey, CommandNode<S>> chains;
         private final Function<Step<S>, @Nullable Command<S>> last;
         private final Function<Step<S>, RedirectModifier<S>> more;
+        /** For each chain node, the node listing what it holds only through a conversion. */
+        private final Map<CommandNode<S>, CommandNode<S>> converted = new LinkedHashMap<>();
 
         Chain(Map<TypeKey, CommandNode<S>> chains, Function<Step<S>, @Nullable Command<S>> last,
               Function<Step<S>, RedirectModifier<S>> more) {
@@ -181,7 +185,10 @@ public final class TreeBuilder<S> {
         void inherit(TypeKey type, ScriptNode mapper, Function<@Nullable Object, @Nullable Object> convert) {
             CommandNode<S> chain = chains.get(type);
             if (chain != null && chain.getChild(mapper.displayName()) == null) {
-                chain.addChild(step(mapper, convert));
+                CommandNode<S> word = step(mapper, convert);
+                chain.addChild(word);
+                converted.computeIfAbsent(chain, node -> ScriptLiteralNode.place(NodeNames.converted(node.getName())))
+                        .addChild(word);
             }
         }
 

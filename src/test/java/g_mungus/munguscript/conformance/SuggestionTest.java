@@ -4,6 +4,8 @@ import com.mojang.brigadier.suggestion.Suggestion;
 import g_mungus.munguscript.conformance.TestTypes.Point;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
+import g_mungus.munguscript.language.node.ScriptNodes;
+import g_mungus.munguscript.language.type.ScriptType;
 
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,37 @@ class SuggestionTest {
         assertEquals(List.of(), h.suggest("set_level ", null));
         assertTrue(h.suggest("set_level v", null).contains("value_of("));
         assertTrue(h.suggest("paint ", null).containsAll(List.of("red", "value_of(")));
+    }
+
+    @EngineTest
+    void wordsAValueOnlyHasThroughAConversionAreSuggestedOnceStarted(Harness h) {
+        // celsius is usable as a double, and everything as a string.
+        List<String> afterCelsius = h.suggest("if level to_celsius ", null);
+        assertTrue(afterCelsius.contains("warm"), afterCelsius.toString());
+        assertFalse(afterCelsius.contains(">"), afterCelsius.toString());
+        assertFalse(afterCelsius.contains("lines"), afterCelsius.toString());
+        assertTrue(h.suggest("if level to_celsius >", null).contains(">"));
+        assertTrue(h.suggest("if level to_celsius r", null).contains("rounded_down"));
+
+        List<String> afterCounter = h.suggest("log value_of(counter ", null);
+        assertEquals(List.of("value"), afterCounter);
+        assertTrue(h.suggest("log value_of(counter l", null).contains("lines"));
+    }
+
+    @EngineTest
+    void aWordThatOnlyLeadsOnThroughAConversionIsSuggestedOnceStarted(Harness h) {
+        // A reactor has nothing of its own: it only becomes a celsius through a conversion.
+        ScriptType<Double> reactor = ScriptType.opaque(TestTypes.key("reactor"), Double.class)
+                .usableAs(TestTypes.CELSIUS, degrees -> degrees);
+        Harness custom = h.with((registrar, world) -> {
+            TestNodes.register(registrar, world);
+            registrar.registerType(reactor);
+            registrar.register(ScriptNodes.getter("core", reactor, context -> 900.0));
+            registrar.register(ScriptNodes.executor("vent", TestTypes.CELSIUS, (value, context) -> world.record("vent", value)));
+        });
+        assertFalse(custom.suggest("vent value_of(", null).contains("core"));
+        assertTrue(custom.suggest("vent value_of(c", null).contains("core"));
+        assertTrue(custom.parsesFully("vent value_of(core)"));
     }
 
     @EngineTest

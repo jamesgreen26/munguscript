@@ -41,6 +41,10 @@ import java.util.concurrent.CompletableFuture;
  * target or cannot lead to the type wanted, and reaches into {@code value_of(...)} by reading the
  * expression in place, as many levels deep as it is open.
  *
+ * <p>Until a word has been started, only what works without converting a value is offered: a word a
+ * chain holds only through a conversion, or one that only leads to what is wanted through one, is
+ * left out. Once it has been started, it is offered like any other.
+ *
  * <p>The engine's argument types suggest through this too ({@link ArgumentLookup}), so a client's
  * own dispatcher gets the same suggestions inside {@code value_of} as the view does.
  */
@@ -49,14 +53,21 @@ public final class Suggester<S> {
 
     private final ScriptTree<S> tree;
     private final TypeGraph graph;
+    private final TypeGraph withoutConversions;
     private final ExpressionReader<S> expressions;
     private final CommandDispatcher<S> commands;
     private final RestrictionIndex<S> restrictions;
 
-    public Suggester(ScriptTree<S> tree, TypeGraph graph, ExpressionReader<S> expressions,
-                     CommandDispatcher<S> commands, RestrictionIndex<S> restrictions) {
+    /**
+     * @param graph              what each type can be turned into, conversions included
+     * @param withoutConversions what each type can be turned into without converting a value
+     */
+    public Suggester(ScriptTree<S> tree, TypeGraph graph, TypeGraph withoutConversions,
+                     ExpressionReader<S> expressions, CommandDispatcher<S> commands,
+                     RestrictionIndex<S> restrictions) {
         this.tree = tree;
         this.graph = graph;
+        this.withoutConversions = withoutConversions;
         this.expressions = expressions;
         this.commands = commands;
         this.restrictions = restrictions;
@@ -110,7 +121,7 @@ public final class Suggester<S> {
         for (CommandNode<S> child : at.parent.getChildren()) {
             if (child instanceof LiteralCommandNode<S> literal) {
                 if (literal.getLiteral().toLowerCase(Locale.ROOT).startsWith(typed.toLowerCase(Locale.ROOT))
-                        && offered(at.parent, literal, targets, source)) {
+                        && offered(at.parent, literal, targets, typed, source)) {
                     suggestions.add(new Suggestion(range, literal.getLiteral()));
                 }
             } else if (child instanceof ArgumentCommandNode<S, ?> argument) {
@@ -119,7 +130,7 @@ public final class Suggester<S> {
             }
         }
         expressionTargets(at.parent, targets).ifPresent(wanted ->
-                suggestions.addAll(tokens.expressions(range, typed, type -> graph.reachesAny(type, wanted))));
+                suggestions.addAll(tokens.expressions(range, typed, type -> reach(typed).reachesAny(type, wanted))));
         return suggestions;
     }
 
@@ -177,9 +188,12 @@ public final class Suggester<S> {
         return suggestions;
     }
 
-    /** Whether a literal under {@code parent} is offered: meant for the target, and able to lead to what is wanted. */
+    /**
+     * Whether a literal under {@code parent} is offered: meant for the target, and able to lead to
+     * what is wanted, without a conversion unless {@code typed} has started the word.
+     */
     private boolean offered(CommandNode<S> parent, LiteralCommandNode<S> child, @Nullable Set<TypeKey> targets,
-                            S source) {
+                            String typed, S source) {
         String name = child.getLiteral();
         if (ScriptTree.isKeyword(name)) {
             return true;
@@ -187,13 +201,28 @@ public final class Suggester<S> {
         if (ScriptTree.isExecutor(child)) {
             return restrictions.executorApplies(name, variantCount(child), source);
         }
-        boolean leadsOn = targets == null || ScriptTree.outputOf(child).filter(type -> graph.reachesAny(type, targets))
-                .isPresent();
+        if (typed.isEmpty() && tree.isConverted(child)) {
+            return false;
+        }
+        // In a condition, what is wanted is a boolean. Every chain the tree has there can reach one,
+        // but perhaps only through a conversion.
+        Set<TypeKey> wanted = targets != null || !inCondition(parent) ? targets : Set.of(BuiltInTypes.BOOLEAN.key());
+        boolean leadsOn = wanted == null || ScriptTree.outputOf(child)
+                .filter(type -> reach(typed).reachesAny(type, wanted)).isPresent();
         if (isValueRoot(parent) || parent == tree.condition()) {
             return leadsOn && restrictions.getterApplies(name, source);
         }
         Optional<TypeKey> input = NodeNames.chainType(parent.getName());
         return input.isEmpty() || leadsOn && restrictions.mapperApplies(name, input.get(), source);
+    }
+
+    /** What a type can be turned into, for offering words: without conversions until one is started. */
+    private TypeGraph reach(String typed) {
+        return typed.isEmpty() ? withoutConversions : graph;
+    }
+
+    private boolean inCondition(CommandNode<S> parent) {
+        return parent == tree.condition() || NodeNames.isConditionChain(parent.getName());
     }
 
     /** At the start of an expression, the types it should lead to: a condition's boolean, or what a value_of wants. */
