@@ -150,6 +150,12 @@ final class ScriptEngineImpl<S> implements ScriptEngine<S> {
     }
 
     @Override
+    public List<Highlight> highlightDefinition(String body, S source,
+                                               CommandPreProcessor.@Nullable Prepared preProcessing) {
+        return view.highlightDefinition(body, source, preProcessing);
+    }
+
+    @Override
     public ExpressionProbe probe(S source) {
         return view.probe(source);
     }

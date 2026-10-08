@@ -9,11 +9,14 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.engine.preprocess.SourceMap;
 import g_mungus.munguscript.engine_impl.argument.CommandText;
+import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOfException;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
 import g_mungus.munguscript.engine_impl.run.Reasons;
 import g_mungus.munguscript.engine_impl.run.ScriptFault;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Optional;
 
 /**
  * Turns whatever a command threw into a {@link ScriptFailure}.
@@ -54,8 +57,10 @@ public final class FailureDescriber<S> {
     private Located syntaxError(CommandSyntaxException failure, String command) {
         ParseResults<S> parse = commands.parse(command, null);
         ImmutableStringReader reader = parse.getReader();
-        if (!parse.getExceptions().isEmpty()) {
-            CommandSyntaxException cause = parse.getExceptions().values().iterator().next();
+        Optional<CommandSyntaxException> reported = parse.getExceptions().values().stream()
+                .filter(exception -> !LiteralOfArgument.notThere(exception)).findFirst();
+        if (reported.isPresent()) {
+            CommandSyntaxException cause = reported.get();
             // A value_of that cannot stand where it is: point at all of it, not just its first word.
             StringRange range = cause instanceof ValueOfException valueOf ? valueOf.range()
                     : CommandText.wordAt(command, cause.getCursor());

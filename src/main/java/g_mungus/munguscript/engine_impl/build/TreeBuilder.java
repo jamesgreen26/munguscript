@@ -5,6 +5,7 @@ import com.mojang.brigadier.RedirectModifier;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
+import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
 import g_mungus.munguscript.engine_impl.run.NodeActions;
@@ -83,6 +84,13 @@ public final class TreeBuilder<S> {
             value.addChild(valueChain.step(getter));
             if (conditionChains.containsKey(getter.outputType().key())) {
                 condition.addChild(conditionChain.step(getter));
+            }
+        }
+        // In LiteralOfArgument.PRIMITIVES' order, which Brigadier tries them in.
+        for (ScriptType<?> type : LiteralOfArgument.PRIMITIVES) {
+            value.addChild(valueChain.literalOf(type));
+            if (conditionChains.containsKey(type.key())) {
+                condition.addChild(conditionChain.literalOf(type));
             }
         }
         for (ScriptNode mapper : registrations.mappers()) {
@@ -179,6 +187,14 @@ public final class TreeBuilder<S> {
         /** A getter or mapper literal, with its argument if it takes one, leading on to its output's chain. */
         CommandNode<S> step(ScriptNode node) {
             return step(node, Function.identity(), false);
+        }
+
+        /** {@code literal_of(...)} reading a literal of {@code type}, leading on to its chain like a getter. */
+        CommandNode<S> literalOf(ScriptType<?> type) {
+            String name = NodeNames.literalOf(type.key());
+            Step<S> step = actions.literalStep(name);
+            LiteralOfArgument argument = new LiteralOfArgument(type.requireLiteral().argumentType(environment), type.key());
+            return new ScriptArgumentNode<>(name, argument, last.apply(step), chains.get(type.key()), more.apply(step));
         }
 
         /** {@code mapper} in the chain of {@code type}, if there is one and it has no word of that name yet. */

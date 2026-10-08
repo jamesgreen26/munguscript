@@ -15,6 +15,7 @@ import com.mojang.brigadier.tree.ArgumentCommandNode;
 import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
+import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
@@ -129,8 +130,11 @@ public final class Suggester<S> {
         StringRange range = StringRange.between(at.startPos, text.length());
         String typed = text.substring(at.startPos);
         List<Suggestion> suggestions = new ArrayList<>();
+        boolean literalOf = false;
         for (CommandNode<S> child : at.parent.getChildren()) {
-            if (child instanceof LiteralCommandNode<S> literal) {
+            if (child instanceof ArgumentCommandNode<S, ?> argument && argument.getType() instanceof LiteralOfArgument) {
+                literalOf = true;
+            } else if (child instanceof LiteralCommandNode<S> literal) {
                 if (literal.getLiteral().toLowerCase(Locale.ROOT).startsWith(typed.toLowerCase(Locale.ROOT))
                         && offered(at.parent, literal, targets, typed, source)) {
                     suggestions.add(new Suggestion(range, literal.getLiteral()));
@@ -139,6 +143,11 @@ public final class Suggester<S> {
                 SuggestionsBuilder builder = new SuggestionsBuilder(text, at.startPos);
                 suggestions.addAll(argument(argument, at.parent.getName(), context, builder, source, tokens));
             }
+        }
+        // One for every primitive type, but offered once, and like value_of only once it has been started.
+        String open = LiteralOfArgument.OPEN;
+        if (literalOf && !typed.isEmpty() && open.startsWith(typed.toLowerCase(Locale.ROOT))) {
+            suggestions.add(new Suggestion(range, open));
         }
         if (isValueRoot(at.parent) && targets == null) {
             // An expression standing alone, of any type.

@@ -19,6 +19,8 @@ import g_mungus.munguscript.engine.preprocess.Rewriter;
 import g_mungus.munguscript.engine.preprocess.Rewritten;
 import g_mungus.munguscript.engine.preprocess.SourceMap;
 import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
+import g_mungus.munguscript.engine_impl.argument.CommandText;
+import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
 import g_mungus.munguscript.engine_impl.highlight.Highlighter;
@@ -173,6 +175,20 @@ final class ViewImpl<S> implements ScriptView<S> {
         String text = processed.command();
         return highlighter.highlightExpression(wrapped, text, ValueOf.OPEN.length(), text.length() - 1,
                 processed.sourceMap(), preProcessing.tokens(), ValueOf.OPEN.length(), expression.length(), source);
+    }
+
+    @Override
+    public List<Highlight> highlightDefinition(String body, S source,
+                                               CommandPreProcessor.@Nullable Prepared preProcessing) {
+        int start = CommandText.skipSpaces(body, 0);
+        int end = body.stripTrailing().length();
+        String text = body.substring(start, Math.max(start, end));
+        boolean named = tree.isGetter(text) || preProcessing != null
+                && preProcessing.tokens().stream().anyMatch(token -> token.text().equals(text));
+        if (!text.isEmpty() && !named && LiteralOfArgument.literalType(text).isPresent()) {
+            return List.of(new Highlight(StringRange.between(start, end), Highlight.Kind.ARGUMENT));
+        }
+        return highlightExpression(body, source, preProcessing);
     }
 
     /**

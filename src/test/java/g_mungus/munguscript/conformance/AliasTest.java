@@ -6,6 +6,7 @@ import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
 import g_mungus.munguscript.engine.preprocess.PreProcessDiagnostic;
 import g_mungus.munguscript.engine.preprocess.PreProcessorToken;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
+import g_mungus.munguscript.language.node.ScriptNodes;
 import g_mungus.munguscript.language.type.TypeKey;
 
 import java.util.HashMap;
@@ -15,6 +16,8 @@ import java.util.Set;
 
 import static g_mungus.munguscript.conformance.World.call;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The engine's own pre-processor: {@code #def name = expression} at the top of a script. */
 class AliasTest {
@@ -149,7 +152,7 @@ class AliasTest {
                 """);
         assertEquals(List.of(
                 PreProcessDiagnostic.atLine(0, "Alias name 'scale' conflicts with a mapper"),
-                PreProcessDiagnostic.atLine(1, "Alias expression must start with a getter or previous alias"),
+                PreProcessDiagnostic.atLine(1, "Alias must be a literal, or an expression that starts with a getter or previous alias"),
                 PreProcessDiagnostic.atLine(2, "Invalid alias declaration"),
                 PreProcessDiagnostic.atLine(3, "Alias expression cannot be empty")), diagnostics);
         h.assertCalls();
@@ -229,7 +232,7 @@ class AliasTest {
                 #def second = here
                 """);
         assertEquals(List.of(PreProcessDiagnostic.atLine(0,
-                "Alias expression must start with a getter or previous alias")), diagnostics);
+                "Alias must be a literal, or an expression that starts with a getter or previous alias")), diagnostics);
     }
 
     @EngineTest
@@ -289,5 +292,189 @@ class AliasTest {
         CommandPreProcessor.Prepared prepared = h.engine.aliases().prepare(List.of(), h.preProcessContext());
         assertEquals("log \"x\"", prepared.process("log \"x\"", h.preProcessContext()).command());
         assertEquals(List.of(), prepared.diagnostics());
+    }
+
+    @EngineTest
+    void aLiteralAliasStartsAnExpressionAsALiteralOf(Harness h) {
+        h.world.level = 3;
+        h.run("""
+                #def greeting = "hello there"
+                #def loud = greeting + "!"
+                log value_of(greeting)
+                log value_of(greeting + "x")
+                log value_of(loud)
+                if greeting == "hello there" log yes
+                if level > 0 log value_of(greeting) else log never
+                """);
+        h.assertCalls(call("log", "hello there"), call("log", "hello therex"), call("log", "hello there!"),
+                call("log", "yes"), call("log", "hello there"));
+    }
+
+    @EngineTest
+    void aLiteralAliasIsNotExpandedWhereAnArgumentGoes(Harness h) {
+        h.world.message = "m";
+        h.run("""
+                #def greeting = "hello"
+                #def n = 5
+                log greeting
+                log value_of(message + greeting)
+                log "greeting"
+                set_level value_of(n)
+                """);
+        h.assertCalls(call("log", "greeting"), call("log", "mgreeting"), call("log", "greeting"),
+                call("set_level", 5));
+        // Left as the word n, which is no int.
+        ScriptFailure failure = h.failure("""
+                #def n = 5
+                set_level n
+                """);
+        assertEquals("set_level n", failure.executedCommand());
+        assertEquals("n", failure.faultText());
+    }
+
+    @EngineTest
+    void aStringAliasKeepsItsEscapes(Harness h) {
+        h.run("""
+                #def quoted = "say \\"hi\\""
+                log value_of(quoted)
+                """);
+        h.assertCalls(call("log", "say \"hi\""));
+    }
+
+    @EngineTest
+    void aLiteralAliasCanBeNamedByAnother(Harness h) {
+        h.run("""
+                #def first = "one"
+                #def second = first
+                #def first = "two"
+                log value_of(second)
+                log value_of(first)
+                """);
+        h.assertCalls(call("log", "one"), call("log", "two"));
+    }
+
+    @EngineTest
+    void aliasesCanBeLiteralsOfEveryPrimitiveType(Harness h) {
+        h.run("""
+                #def n = 5
+                #def half = 0.5
+                #def on = true
+                set_level value_of(n)
+                set_level value_of(n + 1)
+                set_level value_of(half * 4)
+                if on log yes
+                if n > 4 log big
+                log value_of(n + 1 as_string)
+                """);
+        h.assertCalls(call("set_level", 5), call("set_level", 6), call("set_level", 2), call("log", "yes"),
+                call("log", "big"), call("log", "6"));
+    }
+
+    @EngineTest
+    void aBareWordIsAStringAliasUnlessItNamesAGetterOrAlias(Harness h) {
+        h.world.message = "m";
+        h.run("""
+                #def word = asdf
+                #def same = word
+                #def msg = message
+                log value_of(word)
+                log value_of(word + "!")
+                log value_of(same)
+                log value_of(msg)
+                """);
+        h.assertCalls(call("log", "asdf"), call("log", "asdf!"), call("log", "asdf"), call("log", "m"));
+    }
+
+    @EngineTest
+    void aGetterIsTriedBeforeALiteralOfTheSameText(Harness h) {
+        // Getters whose names would otherwise read as a boolean and as a bare-word string, giving
+        // what neither literal would.
+        Harness other = h.with((registrar, world) -> {
+            TestNodes.register(registrar, world);
+            registrar.register(ScriptNodes.getter("false", BuiltInTypes.BOOLEAN, context -> true));
+            registrar.register(ScriptNodes.getter("asdf", BuiltInTypes.STRING, context -> "from the getter"));
+        });
+        other.run("""
+                #def flag = false
+                #def word = asdf
+                if flag log getter
+                log value_of(word)
+                """);
+        other.assertCalls(call("log", "getter"), call("log", "from the getter"));
+    }
+
+    @EngineTest
+    void aPreviousAliasIsTriedBeforeALiteralOfTheSameText(Harness h) {
+        h.world.level = 3;
+        h.run("""
+                #def true = 5
+                #def asdf = level
+                #def copied = true
+                #def read = asdf
+                set_level value_of(read)
+                set_level value_of(copied)
+                set_level value_of(copied + 1)
+                """);
+        // read first: set_level changes the level it reads.
+        h.assertCalls(call("set_level", 3), call("set_level", 5), call("set_level", 6));
+        Map<String, TypeKey> types = new HashMap<>();
+        for (PreProcessorToken token : h.prepare("""
+                #def true = 5
+                #def asdf = level
+                #def copied = true
+                #def read = asdf
+                """).tokens()) {
+            types.put(token.text(), token.valueType());
+        }
+        assertEquals(BuiltInTypes.INT.key(), types.get("copied"));
+        assertEquals(BuiltInTypes.INT.key(), types.get("read"));
+    }
+
+    @EngineTest
+    void textNoPrimitiveTypeReadsIsNotALiteralAlias(Harness h) {
+        assertEquals(List.of(
+                        PreProcessDiagnostic.atLine(0,
+                                "Alias must be a literal, or an expression that starts with a getter or previous alias"),
+                        PreProcessDiagnostic.atLine(1,
+                                "Alias must be a literal, or an expression that starts with a getter or previous alias"),
+                        PreProcessDiagnostic.atLine(2,
+                                "Alias must be a literal, or an expression that starts with a getter or previous alias")),
+                h.diagnostics("""
+                        #def path = target/site
+                        #def two = "a" "b"
+                        #def open = "never closed
+                        """));
+    }
+
+    @EngineTest
+    void anAliasMayShareAnExecutorsName(Harness h) {
+        // It only stands where an expression starts, which no executor does.
+        h.run("""
+                #def log = "x"
+                log value_of(log + "y")
+                """);
+        h.assertCalls(call("log", "xy"));
+    }
+
+    @EngineTest
+    void literalAliasesAreOfferedAndHighlightedOnlyWhereExpressionsStart(Harness h) {
+        CommandPreProcessor.Prepared prepared = h.prepare("""
+                #def greeting = "hello"
+                #def n = 5
+                """);
+        Map<String, PreProcessorToken> tokens = new HashMap<>();
+        prepared.tokens().forEach(token -> tokens.put(token.text(), token));
+        assertEquals(new PreProcessorToken("greeting", PreProcessorToken.Placement.EXPRESSION,
+                BuiltInTypes.STRING.key(), "\"hello\""), tokens.get("greeting"));
+        assertEquals(BuiltInTypes.INT.key(), tokens.get("n").valueType());
+        assertEquals(2, prepared.tokens().size());
+
+        assertFalse(h.suggest("log gr", prepared).contains("greeting"));
+        assertTrue(h.suggest("log value_of(gr", prepared).contains("greeting"));
+        assertEquals(List.of("EXECUTOR:log", "ARGUMENT:greeting"),
+                HighlightTest.highlights(h.engine, h, "log greeting", prepared));
+        assertEquals(List.of("EXECUTOR:log", "ARGUMENT:value_of(", "ALIAS:greeting", "MAPPER:+", "ARGUMENT:\"x\"",
+                        "ARGUMENT:)"),
+                HighlightTest.highlights(h.engine, h, "log value_of(greeting + \"x\")", prepared));
     }
 }

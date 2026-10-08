@@ -19,9 +19,12 @@ import java.util.function.Function;
  * node and points at it.
  *
  * <p>A mapper of a type the value is only usable as converts the value first.
+ *
+ * <p>A {@code literal_of(...)} is a step too, with no node: like a getter, it starts the chain, with
+ * the value its argument parsed to.
  */
 public final class Step<S> {
-    private final ScriptNode node;
+    private final @Nullable ScriptNode node;
     private final @Nullable String argumentName;
     private final ScriptHost<S> host;
     private final Slots<S> slots;
@@ -43,7 +46,20 @@ public final class Step<S> {
         this.convert = convert;
     }
 
+    /** A {@code literal_of(...)}, whose argument node is named {@code argumentName}. */
+    Step(String argumentName, ScriptHost<S> host, Slots<S> slots) {
+        this.node = null;
+        this.argumentName = argumentName;
+        this.host = host;
+        this.slots = slots;
+        this.convert = Function.identity();
+    }
+
     @Nullable Object apply(@Nullable Object input, CommandContext<S> context) {
+        if (node == null) {
+            // Only the primitive types are written in a literal_of, and each parses to its value.
+            return context.getArgument(argumentName, Object.class);
+        }
         NodeContext nodeContext = NodeContext.of(host, context.getSource());
         try {
             if (node instanceof ScriptGetter<?> getter) {

@@ -10,6 +10,7 @@ import g_mungus.munguscript.engine.argument.ArgumentDescription;
 import g_mungus.munguscript.engine.argument.ScriptArguments;
 import g_mungus.munguscript.engine.host.Restriction;
 import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
+import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
 import g_mungus.munguscript.engine_impl.tree.ScriptLiteralNode;
@@ -38,6 +39,8 @@ final class ScriptArgumentsImpl implements ScriptArguments {
         } else if (type instanceof OverloadedArgument overloaded) {
             return Optional.of(new ArgumentDescription.Overloaded(
                     overloaded.variants().stream().map(ScriptArgumentsImpl::describe).toList()));
+        } else if (type instanceof LiteralOfArgument literalOf) {
+            return Optional.of(new ArgumentDescription.LiteralOf(literalOf.literal(), literalOf.type()));
         }
         return Optional.empty();
     }
@@ -75,6 +78,8 @@ final class ScriptArgumentsImpl implements ScriptArguments {
             } else if (description instanceof ArgumentDescription.Overloaded overloaded) {
                 argument = new OverloadedArgument(
                         overloaded.variants().stream().map(this::slot).toList(), lookup, false);
+            } else if (description instanceof ArgumentDescription.LiteralOf literalOf) {
+                argument = new LiteralOfArgument(literalOf.literal(), literalOf.type());
             } else {
                 throw new IllegalStateException("Unknown argument description: " + description);
             }

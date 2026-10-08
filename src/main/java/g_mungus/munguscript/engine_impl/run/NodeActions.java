@@ -41,6 +41,11 @@ public final class NodeActions<S> {
         return new Step<>(node, argumentName, host, slots, convert);
     }
 
+    /** A {@code literal_of(...)} starting a chain, whose argument node is named {@code argumentName}. */
+    public Step<S> literalStep(String argumentName) {
+        return new Step<>(argumentName, host, slots);
+    }
+
     /** The last step of a {@code value_of}: leaves the result in the run. */
     public Command<S> lastValueStep(Step<S> step) {
         return context -> {

@@ -28,10 +28,10 @@ The engine grafts these nodes under the node the host chose (`NodeNames` holds t
 
 ```
 munguscript:script               where a line starts: every executor, plus if and unless
-munguscript:condition            getters that can lead to a boolean, after if / unless
+munguscript:condition            getters that can lead to a boolean, after if / unless, and literal_of
 munguscript:condition/<type>     mappers from <type> that can still lead to a boolean;
                                  for boolean, a copy of every executor, followed by else
-munguscript:value                every getter, inside value_of(...)
+munguscript:value                every getter, and literal_of, inside value_of(...)
 munguscript:value/<type>         every mapper from <type>
 munguscript:converted/<chain>    the words <chain> holds only through a conversion (§7): the same
                                  nodes, never parsed through
@@ -53,6 +53,14 @@ executors and a `value_of`'s value is followed by nothing. Condition chains exis
 that can still reach a boolean (`TypeGraph`), so a condition that can never become one fails while
 it parses. Value chains hold every mapper; whether a `value_of` gives the type wanted is checked
 by reading it (§5). A chain node also holds the mappers of the types its type is usable as (§7).
+
+**`literal_of(...)` stands where a getter does.** Each expression root also holds one argument node
+per primitive type (`literal_of(script:int)`, then double, boolean and string), each a
+`LiteralOfArgument` that reads `literal_of(`, its type's literal up to the `)`, and the `)`, and
+redirects to that type's chain like a getter. Brigadier tries argument nodes only when the word is
+no getter's name, and takes the first that reads, so the order decides the type: `literal_of(5)` is
+an int, `literal_of(5.5)` a double, and only what nothing else reads is a string. Literal aliases
+(`#def n = 5`, `#def out = "target"`) expand to `literal_of(...)` where an expression starts.
 
 **Executors are built twice.** Under `munguscript:script` they end the line. Under
 `munguscript:condition/script:boolean` each one may be followed by its own `else`, which leads back

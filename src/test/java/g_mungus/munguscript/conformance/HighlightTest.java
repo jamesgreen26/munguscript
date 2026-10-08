@@ -4,6 +4,8 @@ import g_mungus.munguscript.conformance.TestTypes.Point;
 import g_mungus.munguscript.engine.Highlight;
 import g_mungus.munguscript.engine.ScriptView;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
+import g_mungus.munguscript.language.builtin.BuiltInTypes;
+import g_mungus.munguscript.language.node.ScriptNodes;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -131,5 +133,64 @@ class HighlightTest {
                 .stream().map(Highlight::kind).distinct().sorted().toList();
         assertEquals(List.of(Highlight.Kind.KEYWORD, Highlight.Kind.EXECUTOR, Highlight.Kind.GETTER,
                 Highlight.Kind.MAPPER, Highlight.Kind.ARGUMENT, Highlight.Kind.UNPARSED), kinds);
+    }
+
+    static List<String> definitionHighlights(ScriptView<TestHost.Source> view, Harness h, String body,
+                                             CommandPreProcessor.@Nullable Prepared prepared) {
+        return view.highlightDefinition(body, h.source(), prepared).stream()
+                .map(highlight -> highlight.kind() + ":" + highlight.range().get(body))
+                .toList();
+    }
+
+    @EngineTest
+    void aLiteralDefinitionIsOneArgument(Harness h) {
+        for (String literal : List.of("\"hello there\"", "5", "0.5", "true", "asdf")) {
+            assertEquals(List.of("ARGUMENT:" + literal), definitionHighlights(h.engine, h, literal, null), literal);
+        }
+        assertEquals(List.of("ARGUMENT:5"), definitionHighlights(h.engine, h, " 5 ", null));
+    }
+
+    @EngineTest
+    void anExpressionDefinitionIsHighlightedAsAnExpression(Harness h) {
+        CommandPreProcessor.Prepared prepared = h.prepare("""
+                #def lvl = level
+                #def greeting = "hello"
+                """);
+        assertEquals(List.of("GETTER:level"), definitionHighlights(h.engine, h, "level", prepared));
+        assertEquals(List.of("GETTER:level", "MAPPER:scale", "ARGUMENT:2"),
+                definitionHighlights(h.engine, h, "level scale 2", prepared));
+        assertEquals(List.of("ALIAS:lvl", "MAPPER:scale", "ARGUMENT:2"),
+                definitionHighlights(h.engine, h, "lvl scale 2", prepared));
+        assertEquals(List.of("ALIAS:greeting", "MAPPER:+", "ARGUMENT:\"!\""),
+                definitionHighlights(h.engine, h, "greeting + \"!\"", prepared));
+        assertEquals(List.of("GETTER:literal_of(", "ARGUMENT:5", "GETTER:)"),
+                definitionHighlights(h.engine, h, "literal_of(5)", prepared));
+    }
+
+    @EngineTest
+    void aDefinitionNamingAnAliasIsThatAliasNotALiteral(Harness h) {
+        CommandPreProcessor.Prepared prepared = h.prepare("""
+                #def greeting = "hello"
+                #def copied = greeting
+                """);
+        assertEquals(List.of("ALIAS:greeting"), definitionHighlights(h.engine, h, "greeting", prepared));
+        // Without the script's aliases, the same word can only be a bare-word string.
+        assertEquals(List.of("ARGUMENT:greeting"), definitionHighlights(h.engine, h, "greeting", null));
+    }
+
+    @EngineTest
+    void aDefinitionNamingAGetterIsThatGetterNotALiteral(Harness h) {
+        Harness other = h.with((registrar, world) -> {
+            TestNodes.register(registrar, world);
+            registrar.register(ScriptNodes.getter("false", BuiltInTypes.BOOLEAN, context -> true));
+        });
+        assertEquals(List.of("GETTER:false"), definitionHighlights(other.engine, other, "false", null));
+        assertEquals(List.of("ARGUMENT:true"), definitionHighlights(other.engine, other, "true", null));
+    }
+
+    @EngineTest
+    void whatIsNeitherALiteralNorAnExpressionIsUnparsed(Harness h) {
+        assertEquals(List.of("UNPARSED:target/site"), definitionHighlights(h.engine, h, "target/site", null));
+        assertEquals(List.of("UNPARSED:\"a\" \"b\""), definitionHighlights(h.engine, h, "\"a\" \"b\"", null));
     }
 }

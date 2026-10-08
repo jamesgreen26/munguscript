@@ -49,7 +49,9 @@ class CodecTest {
             "if here x == 7 log a else if level > 0 log b else log c", "if level log x", "log value_of(message matches \"h\" as_string)",
             "frobnicate", "move value_of(", "configure value_of(lev", "log value_of(favourite)",
             "if level to_celsius rounded_down > 3 log x", "log value_of(level + \"x\")",
-            "log value_of(counter lines)");
+            "log value_of(counter lines)", "log value_of(literal_of(\"a b\") + \"c\")",
+            "if literal_of(3) > 2 log big", "log value_of(literal_of(x y))", "if literal_of(5 log x",
+            "log value_of(lit");
 
     private static byte[] encode(Harness h, TestHostCodec host) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -107,6 +109,10 @@ class CodecTest {
                 "level to_celsius > 20.5")) {
             assertEquals(HighlightTest.expressionHighlights(h.engine, h, expression, null),
                     HighlightTest.expressionHighlights(client, h, expression, null), expression);
+        }
+        for (String body : List.of("\"hello\"", "5", "true", "asdf", "level", "level scale 2", "target/site")) {
+            assertEquals(HighlightTest.definitionHighlights(h.engine, h, body, null),
+                    HighlightTest.definitionHighlights(client, h, body, null), body);
         }
     }
 

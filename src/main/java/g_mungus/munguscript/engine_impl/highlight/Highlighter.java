@@ -13,6 +13,7 @@ import g_mungus.munguscript.engine.Highlight;
 import g_mungus.munguscript.engine.preprocess.PreProcessorToken;
 import g_mungus.munguscript.engine.preprocess.SourceMap;
 import g_mungus.munguscript.engine_impl.argument.CommandText;
+import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
@@ -100,6 +101,14 @@ public final class Highlighter<S> {
 
     private void word(CommandNode<S> parent, CommandNode<S> node, StringRange range, String input,
                       @Nullable S source, List<Highlight> found) {
+        if (node instanceof ArgumentCommandNode<S, ?> argument && argument.getType() instanceof LiteralOfArgument) {
+            // It stands as a getter does; only the literal between its brackets is an argument.
+            int innerStart = range.getStart() + LiteralOfArgument.OPEN.length();
+            found.add(new Highlight(StringRange.between(range.getStart(), innerStart), Highlight.Kind.GETTER));
+            found.add(new Highlight(StringRange.between(innerStart, range.getEnd() - 1), Highlight.Kind.ARGUMENT));
+            found.add(new Highlight(StringRange.between(range.getEnd() - 1, range.getEnd()), Highlight.Kind.GETTER));
+            return;
+        }
         if (node instanceof ArgumentCommandNode<S, ?> argument) {
             boolean takesValueOf = argument.getType() instanceof ValueOrLiteralArgument
                     || argument.getType() instanceof OverloadedArgument;

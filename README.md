@@ -8,10 +8,18 @@ it with mappers, and hands it to an executor:
 
 ```
 #def text = read_file
+#def greeting = "hello"
 write_file "hello"
 write_file value_of(read_file + " world")
 if text lines > 0 write_file value_of(text <+ "first line\\n")
+write_file value_of(greeting + " world")
 ```
+
+`#def` aliases are text macros that stand where an expression starts (after `if`/`unless`, or inside
+`value_of(...)`): an expression, re-run wherever it is used, or a literal (a number, `true`/`false`,
+or a string, quoted or a bare word), which stands there as `literal_of(...)`. An expression starts
+with a getter or with `literal_of(...)`, which reads a literal as the first primitive type that
+takes it. Where an argument goes, an alias's name is just that word.
 
 ## Layout
 

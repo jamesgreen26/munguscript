@@ -57,7 +57,7 @@ import java.util.Optional;
  */
 public final class ScriptTreeCodec {
     /** The format {@link #encode} writes and {@link #decode} reads. */
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
 
     private static final byte LITERAL = 0;
     private static final byte ARGUMENT = 1;
@@ -70,6 +70,7 @@ public final class ScriptTreeCodec {
     private static final byte HOST_ARGUMENT = 0;
     private static final byte VALUE_OR_LITERAL = 1;
     private static final byte OVERLOADED = 2;
+    private static final byte LITERAL_OF = 3;
 
     private final ScriptArguments arguments;
     private final HostCodec host;
@@ -209,6 +210,10 @@ public final class ScriptTreeCodec {
             for (ArgumentDescription.ValueOrLiteral variant : overloaded.variants()) {
                 writeValueOrLiteral(variant, out);
             }
+        } else if (description.get() instanceof ArgumentDescription.LiteralOf literalOf) {
+            out.writeByte(LITERAL_OF);
+            out.writeUTF(literalOf.type().toString());
+            host.writeArgumentType(out, literalOf.literal());
         } else {
             throw new IllegalStateException("Unknown argument description: " + description.get());
         }
@@ -282,6 +287,10 @@ public final class ScriptTreeCodec {
                     variants.add(readValueOrLiteral(in));
                 }
                 yield rebuild.argument(new ArgumentDescription.Overloaded(variants));
+            }
+            case LITERAL_OF -> {
+                TypeKey type = readKey(in);
+                yield rebuild.argument(new ArgumentDescription.LiteralOf(host.readArgumentType(in), type));
             }
             default -> throw new IOException("Unknown argument type form " + form);
         };

@@ -7,6 +7,7 @@ import g_mungus.munguscript.engine.preprocess.PreProcessed;
 import g_mungus.munguscript.engine.preprocess.PreProcessorToken;
 import g_mungus.munguscript.engine.preprocess.Rewriter;
 import g_mungus.munguscript.engine.preprocess.Rewritten;
+import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
 import g_mungus.munguscript.language.type.TypeKey;
@@ -28,6 +29,12 @@ import java.util.regex.Pattern;
  * wherever an expression starts, its name is replaced with its expression, which runs again each
  * time. A failure inside the expansion points at the alias name, since the whole name maps to the
  * whole expansion.
+ *
+ * <p>An alias can also be a literal of a primitive type: a number, {@code true} or {@code false},
+ * or a string, quoted or a bare word, as in {@code #def out = "target/site"}. A bare word that names
+ * a getter or an earlier alias is that getter or alias, not a string. Like any alias it stands only
+ * where an expression starts, as {@code literal_of(...)} around the literal; an argument written
+ * like its name is still that argument.
  *
  * <p>The block at the top may hold definitions, comments ({@code #} lines) and blank lines, and
  * ends at the first command. A later definition of a name replaces the earlier one.
@@ -88,9 +95,18 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
         if (body.isEmpty()) {
             return Optional.of("Alias expression cannot be empty");
         }
+        // A getter or an earlier alias is tried first, so a literal never hides one of the same name.
+        Optional<TypeKey> literal = aliases.containsKey(body) || tree.isGetter(body)
+                ? Optional.empty() : LiteralOfArgument.literalType(body);
+        if (literal.isPresent()) {
+            aliases.put(name, new Alias(name, body, LiteralOfArgument.OPEN + body + ")", literal.get()));
+            return Optional.empty();
+        }
         Matcher first = NAME.matcher(body);
-        if (!first.lookingAt() || !tree.isGetter(first.group()) && !aliases.containsKey(first.group())) {
-            return Optional.of("Alias expression must start with a getter or previous alias");
+        boolean startsWell = LiteralOfArgument.startsAt(body, 0)
+                || first.lookingAt() && (tree.isGetter(first.group()) || aliases.containsKey(first.group()));
+        if (!startsWell) {
+            return Optional.of("Alias must be a literal, or an expression that starts with a getter or previous alias");
         }
         // Earlier aliases are expanded now, so each expansion is complete on its own. That is also
         // what lets a definition replace an earlier one of the same name, even building on it,
@@ -136,9 +152,10 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
     }
 
     /**
-     * @param body      the expression as written, shown alongside the alias in suggestions
-     * @param expansion the expression with earlier aliases expanded, which replaces the name
-     * @param type      what the expression gives, if it reads in full
+     * @param body      the expression or literal as written, shown alongside the alias in suggestions
+     * @param expansion what replaces the name: the expression with earlier aliases expanded, or
+     *                  {@code literal_of(...)} around the literal
+     * @param type      what it gives, if it reads in full
      */
     private record Alias(String name, String body, String expansion, @Nullable TypeKey type) {
     }

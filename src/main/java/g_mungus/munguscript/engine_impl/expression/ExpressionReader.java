@@ -10,6 +10,7 @@ import com.mojang.brigadier.context.StringRange;
 import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.RootCommandNode;
 import g_mungus.munguscript.engine_impl.argument.CommandText;
+import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.argument.ValueOfException;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
@@ -69,7 +70,11 @@ public final class ExpressionReader<S> {
         ImmutableStringReader reader = parse.getReader();
         ParsedCommandNode<S> last = lastNode(parse.getContext());
         if (last == null) {
-            return reader.canRead() ? new Shape.UnknownStart(wordAt(reader)) : new Shape.Empty();
+            if (!reader.canRead()) {
+                return new Shape.Empty();
+            }
+            String problem = LiteralOfArgument.problem(reader.getString(), reader.getCursor());
+            return problem != null ? new Shape.BadLiteral(problem) : new Shape.UnknownStart(wordAt(reader));
         }
         Optional<TypeKey> type = ScriptTree.typeAfter(last.getNode());
         if (reader.canRead()) {
@@ -134,6 +139,8 @@ public final class ExpressionReader<S> {
             return "value_of() is empty, and " + owner + " needs " + names.of(target);
         } else if (shape instanceof Shape.UnknownStart start) {
             return "'" + start.word() + "' is not a known value in value_of(" + text + ")";
+        } else if (shape instanceof Shape.BadLiteral literal) {
+            return "In value_of(" + text + "), " + literal.reason();
         } else if (shape instanceof Shape.MissingArgument missing) {
             return "value_of(" + text + ") is incomplete: '" + missing.mapper() + "' needs a value after it";
         } else if (shape instanceof Shape.BadArgument bad) {

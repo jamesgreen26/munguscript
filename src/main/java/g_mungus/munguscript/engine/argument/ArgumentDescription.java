@@ -19,6 +19,13 @@ public sealed interface ArgumentDescription {
     record ValueOrLiteral(ArgumentType<?> literal, TypeKey target) implements ArgumentDescription {
     }
 
+    /**
+     * A {@code literal_of(...)} at the start of an expression: reads {@code literal}, the argument of
+     * the primitive type {@code type}, between the brackets.
+     */
+    record LiteralOf(ArgumentType<?> literal, TypeKey type) implements ArgumentDescription {
+    }
+
     /** The argument of executors that share a name: one variant per executor, in order. */
     record Overloaded(List<ValueOrLiteral> variants) implements ArgumentDescription {
         public Overloaded {

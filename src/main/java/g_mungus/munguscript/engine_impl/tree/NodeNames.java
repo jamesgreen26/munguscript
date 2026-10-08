@@ -23,6 +23,9 @@ public final class NodeNames {
 
     private static final String CONVERTED = PREFIX + "converted" + CHAIN_SEPARATOR;
 
+    /** The argument nodes that read {@code literal_of(...)}, one per primitive type, are named after it. */
+    private static final String LITERAL_OF = "literal_of";
+
     public static final String IF = "if";
     public static final String UNLESS = "unless";
     public static final String ELSE = "else";
@@ -38,6 +41,11 @@ public final class NodeNames {
     /** The node a condition continues from when its value is of {@code type}. */
     public static String conditionChain(TypeKey type) {
         return CONDITION + CHAIN_SEPARATOR + type;
+    }
+
+    /** The {@code literal_of(...)} node at an expression's start that reads a literal of {@code type}. */
+    public static String literalOf(TypeKey type) {
+        return LITERAL_OF + "(" + type + ")";
     }
 
     /**

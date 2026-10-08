@@ -68,6 +68,17 @@ public interface ScriptView<S> {
                                         @Nullable CommandPreProcessor.Prepared preProcessing);
 
     /**
+     * What each word of an alias definition's right-hand side is: the {@code body} of
+     * {@code #def name = body}. A literal (a number, {@code true} or {@code false}, or a string) is
+     * one {@link Highlight.Kind#ARGUMENT}; anything else is highlighted as {@link #highlightExpression}
+     * does. As in the definition itself, a getter or alias of the same name is not a literal: a body
+     * that names one is that getter or alias. Ranges are in {@code body}.
+     *
+     * @param preProcessing the script's pre-processing, whose aliases the body may use
+     */
+    List<Highlight> highlightDefinition(String body, S source, @Nullable CommandPreProcessor.Prepared preProcessing);
+
+    /**
      * Suggestions at {@code cursor} in an expression standing alone, as {@link #suggest} gives them
      * inside a {@code value_of(}: an expression as {@link ScriptEngine#evaluate} is given it,
      * starting with a getter or an alias. Ranges are in {@code expression}. A cursor outside it is

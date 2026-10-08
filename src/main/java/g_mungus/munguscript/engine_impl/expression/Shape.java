@@ -19,6 +19,10 @@ public sealed interface Shape {
     record UnknownStart(String word) implements Shape {
     }
 
+    /** It starts with a {@code literal_of(...)} that no primitive type reads, for {@code reason}. */
+    record BadLiteral(String reason) implements Shape {
+    }
+
     /** It ends just after a mapper that needs an argument. */
     record MissingArgument(String mapper) implements Shape {
     }
