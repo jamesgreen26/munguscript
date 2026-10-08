@@ -1,18 +1,20 @@
 package g_mungus.munguscript.engine.argument;
 
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.ScriptView;
 import g_mungus.munguscript.engine.ScriptViewHost;
 import g_mungus.munguscript.engine.host.Restriction;
 import g_mungus.munguscript.language.type.ScriptType;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Optional;
 
 /**
- * Taking the engine's own argument types apart and putting them back together, for a host that
- * sends its command tree to a client. Reached through
+ * Taking the engine's own argument types and literal nodes apart and putting them back together,
+ * for a host that sends its command tree to a client. Reached through
  * {@link g_mungus.munguscript.engine.MungusScript#arguments()}.
  *
  * <p>On the server, the host {@linkplain #describe describes} each argument type in the grafted
@@ -23,6 +25,8 @@ import java.util.Optional;
  * ScriptArguments.Rebuild rebuild = MungusScript.arguments().rebuild();
  * // while decoding the packet, for each of the engine's argument types:
  * ArgumentType<?> type = rebuild.argument(description);
+ * // and for each literal node:
+ * CommandNode<S> literal = rebuild.literal(name, command, redirect, suggestedOnlyOnceStarted);
  * // once the tree is decoded:
  * ScriptView<S> view = rebuild.view(host, types, restrictions, graftedUnder);
  * }</pre>
@@ -31,6 +35,13 @@ public interface ScriptArguments {
 
     /** What {@code type} is made of, or empty if it is not one of the engine's argument types. */
     Optional<ArgumentDescription> describe(ArgumentType<?> type);
+
+    /**
+     * Whether {@code node} is a word that is only suggested once it has been started, even by a
+     * plain Brigadier dispatcher: one a chain holds only through a conversion. A host that sends it
+     * makes it again with {@link Rebuild#literal}, or it is suggested always.
+     */
+    boolean suggestedOnlyOnceStarted(CommandNode<?> node);
 
     /** Starts rebuilding the engine's argument types in one received tree. */
     Rebuild rebuild();
@@ -50,6 +61,14 @@ public interface ScriptArguments {
          * @throws IllegalStateException if the view has already been made
          */
         ArgumentType<?> argument(ArgumentDescription description);
+
+        /**
+         * A literal node of the received tree, as the engine makes its own: told apart from another of
+         * the same name by where it redirects, and suggested only once started if
+         * {@code suggestedOnlyOnceStarted}. Its children are added by the caller.
+         */
+        <S> CommandNode<S> literal(String name, @Nullable Command<S> command, @Nullable CommandNode<S> redirect,
+                                   boolean suggestedOnlyOnceStarted);
 
         /**
          * The view over the decoded tree, as {@link g_mungus.munguscript.engine.MungusScript#view}

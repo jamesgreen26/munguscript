@@ -191,6 +191,11 @@ and a view over a received tree both work them out from the types they were give
   conversion (`TypeGraph.withoutConversions`). Once a word has been started, it is offered like any
   other. The copies are told apart by the `munguscript:converted/<chain>` nodes, which list them as
   their children. The codec keeps node identity, so a client's view tells them apart the same way.
+  A host that leads its own command into a chain and lets Brigadier suggest the rest never reaches
+  `Suggester`, so the copies are `ScriptLiteralNode`s that suggest nothing themselves until started.
+  `ScriptTreeCodec` keeps that: it writes the flag for each node, and the engine makes the literals
+  again (`ScriptArguments.Rebuild.literal`). A tree rebuilt from plain nodes by anything else, such as
+  a game's own command packet, loses it, but a view over that tree still applies the rule.
 
 ## 8. Where to Look
 

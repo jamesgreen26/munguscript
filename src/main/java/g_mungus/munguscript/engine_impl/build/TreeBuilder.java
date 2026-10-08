@@ -178,31 +178,33 @@ public final class TreeBuilder<S> {
 
         /** A getter or mapper literal, with its argument if it takes one, leading on to its output's chain. */
         CommandNode<S> step(ScriptNode node) {
-            return step(node, Function.identity());
+            return step(node, Function.identity(), false);
         }
 
         /** {@code mapper} in the chain of {@code type}, if there is one and it has no word of that name yet. */
         void inherit(TypeKey type, ScriptNode mapper, Function<@Nullable Object, @Nullable Object> convert) {
             CommandNode<S> chain = chains.get(type);
             if (chain != null && chain.getChild(mapper.displayName()) == null) {
-                CommandNode<S> word = step(mapper, convert);
+                CommandNode<S> word = step(mapper, convert, true);
                 chain.addChild(word);
                 converted.computeIfAbsent(chain, node -> ScriptLiteralNode.place(NodeNames.converted(node.getName())))
                         .addChild(word);
             }
         }
 
-        private CommandNode<S> step(ScriptNode node, Function<@Nullable Object, @Nullable Object> convert) {
+        /** @param converted whether the chain holds it only through a conversion */
+        private CommandNode<S> step(ScriptNode node, Function<@Nullable Object, @Nullable Object> convert,
+                                    boolean converted) {
             CommandNode<S> next = chains.get(output(node));
             if (!(node instanceof ScriptArgumentMapper<?, ?, ?> mapper)) {
                 Step<S> step = actions.step(node, null, convert);
-                return new ScriptLiteralNode<>(node.displayName(), last.apply(step), next, more.apply(step));
+                return new ScriptLiteralNode<>(node.displayName(), last.apply(step), next, more.apply(step), converted);
             }
             Step<S> step = actions.step(node, mapper.argumentHint(), convert);
             ArgumentType<?> type = mapper.argumentScriptType() == null
                     ? mapper.argumentType(environment)
                     : slot(mapper.argumentType(environment), mapper.argumentScriptType().key());
-            CommandNode<S> literal = new ScriptLiteralNode<>(node.displayName(), null, null, null);
+            CommandNode<S> literal = new ScriptLiteralNode<>(node.displayName(), null, null, null, converted);
             literal.addChild(new ScriptArgumentNode<>(mapper.argumentHint(), type, last.apply(step), next,
                     more.apply(step)));
             return literal;

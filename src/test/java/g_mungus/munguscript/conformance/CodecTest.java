@@ -37,6 +37,9 @@ class CodecTest {
             List.of(TestTypes.POINT, TestTypes.COLOR, TestTypes.CELSIUS, TestTypes.COUNTER);
 
     /** Lines a client checks: plain, conditional, overloaded, nested value_of, and some that are wrong. */
+    /** Where the first node starts: after the format version and the node count. */
+    private static final int FIRST_NODE = 8;
+
     private static final List<String> COMMANDS = List.of(
             "paint red", "move 1 2", "move ~1 ~", "set_level 5", "set_level 11", "pick blue", "log \"hi\"",
             "configure 3", "configure red", "move value_of(here plus value_of(origin plus 1 1))",
@@ -187,12 +190,38 @@ class CodecTest {
     @EngineTest
     void aChildOutsideTheTableIsRefused(Harness h) throws IOException {
         byte[] bytes = encode(h, new TestHostCodec());
-        // The first node: kind, name, whether it runs, then its child count and first child.
-        int nameLength = ByteBuffer.wrap(bytes, 9, 2).getShort();
-        int firstChild = 9 + 2 + nameLength + 1 + 4;
+        // The first node: kind, flags, name, whether it runs, then its child count and first child.
+        int nameLength = ByteBuffer.wrap(bytes, FIRST_NODE + 2, 2).getShort();
+        int firstChild = FIRST_NODE + 2 + 2 + nameLength + 1 + 4;
         ByteBuffer.wrap(bytes).putInt(firstChild, Integer.MAX_VALUE);
         IOException e = assertThrows(IOException.class, () -> decode(h, bytes, new TestHostCodec()));
         assertTrue(e.getMessage().contains("nodes"), e.getMessage());
+    }
+
+    @EngineTest
+    void unknownNodeFlagsAreRefused(Harness h) throws IOException {
+        byte[] bytes = encode(h, new TestHostCodec());
+        bytes[FIRST_NODE + 1] = (byte) 0x80;
+        IOException e = assertThrows(IOException.class, () -> decode(h, bytes, new TestHostCodec()));
+        assertTrue(e.getMessage().contains("unknown flags"), e.getMessage());
+    }
+
+    @EngineTest
+    void aClientsOwnDispatcherSuggestsConvertedWordsOnlyOnceStarted(Harness h) throws IOException {
+        // A client that leads its own command into the decoded tree and lets Brigadier suggest the rest.
+        ScriptView<TestHost.Source> client = roundTrip(h);
+        CommandDispatcher<TestHost.Source> chat = new CommandDispatcher<>();
+        chat.register(LiteralArgumentBuilder.<TestHost.Source>literal("script").redirect(client.scriptRoot()));
+        List<String> afterCelsius = brigadierSuggestions(chat, "script if level to_celsius ", h);
+        assertTrue(afterCelsius.contains("warm"), afterCelsius.toString());
+        assertFalse(afterCelsius.contains(">"), afterCelsius.toString());
+        assertTrue(brigadierSuggestions(chat, "script if level to_celsius r", h).contains("rounded_down"));
+    }
+
+    private static List<String> brigadierSuggestions(CommandDispatcher<TestHost.Source> dispatcher, String command,
+                                                     Harness h) {
+        return dispatcher.getCompletionSuggestions(dispatcher.parse(command, h.source())).join().getList().stream()
+                .map(Suggestion::getText).toList();
     }
 
     private static List<String> childNames(CommandNode<?> node) {

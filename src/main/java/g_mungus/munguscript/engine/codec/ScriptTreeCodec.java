@@ -44,21 +44,28 @@ import java.util.Optional;
  * }</pre>
  *
  * <p>What is written: a format version; every node under the graft, numbered by identity and never
- * merged, with its kind, name, whether it runs, its children in order and its redirect; each
+ * merged, with its kind, its flags (whether a literal is
+ * {@linkplain ScriptArguments#suggestedOnlyOnceStarted suggested only once started}), name, whether
+ * it runs, its children in order and its redirect; each
  * argument node's type, as the engine {@linkplain ScriptArguments#describe describes} it or
  * through the host; and the engine's {@linkplain ScriptEngine#restrictions restrictions}. Commands
- * and redirect modifiers are not written: a decoded tree only parses and suggests. Script types are
+ * and redirect modifiers are not written: a decoded tree only parses and suggests. Literals are made
+ * again by the engine ({@link ScriptArguments.Rebuild#literal}), so they suggest as the server's do. Script types are
  * not written either: they are code, which the client registers itself.
  *
  * <p>The codec only uses the engine's API, so it works with any engine.
  */
 public final class ScriptTreeCodec {
     /** The format {@link #encode} writes and {@link #decode} reads. */
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
 
     private static final byte LITERAL = 0;
     private static final byte ARGUMENT = 1;
     private static final byte ROOT = 2;
+
+    /** A node flag: the literal is suggested only once it has been started. */
+    private static final byte ONLY_ONCE_STARTED = 1;
+    private static final byte KNOWN_FLAGS = ONLY_ONCE_STARTED;
 
     private static final byte HOST_ARGUMENT = 0;
     private static final byte VALUE_OR_LITERAL = 1;
@@ -132,7 +139,7 @@ public final class ScriptTreeCodec {
         for (int i = 0; i < restrictionCount; i++) {
             restrictions.add(readRestriction(in));
         }
-        List<CommandNode<S>> nodes = new Builder<S>(records).build();
+        List<CommandNode<S>> nodes = new Builder<S>(records, rebuild).build();
         return rebuild.view(viewHost, types, restrictions, nodes.get(0));
     }
 
@@ -159,6 +166,8 @@ public final class ScriptTreeCodec {
     private <S> void writeNode(CommandNode<S> node, Map<CommandNode<S>, Integer> index, DataOutput out)
             throws IOException {
         out.writeByte(kind(node));
+        out.writeByte(node instanceof LiteralCommandNode<?> && arguments.suggestedOnlyOnceStarted(node)
+                ? ONLY_ONCE_STARTED : 0);
         out.writeUTF(node.getName());
         out.writeBoolean(node.getCommand() != null);
         Collection<CommandNode<S>> children = node.getChildren();
@@ -223,8 +232,8 @@ public final class ScriptTreeCodec {
     }
 
     /** One node as read, before the nodes it points at exist. */
-    private record NodeRecord(byte kind, String name, boolean runs, int[] children, int redirect,
-                              @Nullable ArgumentType<?> type) {
+    private record NodeRecord(byte kind, boolean onlyOnceStarted, String name, boolean runs, int[] children,
+                              int redirect, @Nullable ArgumentType<?> type) {
     }
 
     private NodeRecord readNode(DataInput in, int position, int count, ScriptArguments.Rebuild rebuild)
@@ -235,6 +244,14 @@ public final class ScriptTreeCodec {
         }
         if (kind == ROOT && position != 0) {
             throw new IOException("Node " + position + " is a root, but only the first node may be");
+        }
+        byte flags = in.readByte();
+        if ((flags & ~KNOWN_FLAGS) != 0) {
+            throw new IOException("Node " + position + " has unknown flags " + flags);
+        }
+        boolean onlyOnceStarted = (flags & ONLY_ONCE_STARTED) != 0;
+        if (onlyOnceStarted && kind != LITERAL) {
+            throw new IOException("Node " + position + " is only suggested once started, but is not a literal");
         }
         String name = in.readUTF();
         boolean runs = in.readBoolean();
@@ -250,7 +267,7 @@ public final class ScriptTreeCodec {
                     + " nodes");
         }
         ArgumentType<?> type = kind == ARGUMENT ? readArgumentType(in, rebuild) : null;
-        return new NodeRecord(kind, name, runs, children, redirect, type);
+        return new NodeRecord(kind, onlyOnceStarted, name, runs, children, redirect, type);
     }
 
     private ArgumentType<?> readArgumentType(DataInput in, ScriptArguments.Rebuild rebuild) throws IOException {
@@ -317,11 +334,13 @@ public final class ScriptTreeCodec {
     /** Makes the nodes, each after the node it redirects to, then joins them up in their original order. */
     private static final class Builder<S> {
         private final List<NodeRecord> records;
+        private final ScriptArguments.Rebuild rebuild;
         private final List<@Nullable CommandNode<S>> made;
         private final boolean[] making;
 
-        Builder(List<NodeRecord> records) {
+        Builder(List<NodeRecord> records, ScriptArguments.Rebuild rebuild) {
             this.records = records;
+            this.rebuild = rebuild;
             this.made = new ArrayList<>(Collections.nCopies(records.size(), null));
             this.making = new boolean[records.size()];
         }
@@ -364,8 +383,7 @@ public final class ScriptTreeCodec {
                     }
                     yield new RootCommandNode<>();
                 }
-                case LITERAL -> new LiteralCommandNode<>(record.name(), command, source -> true, redirect, null,
-                        false);
+                case LITERAL -> rebuild.literal(record.name(), command, redirect, record.onlyOnceStarted());
                 default -> new ArgumentCommandNode(record.name(), (ArgumentType) record.type(), command,
                         source -> true, redirect, null, false, null);
             };

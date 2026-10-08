@@ -1,5 +1,6 @@
 package g_mungus.munguscript.engine_impl;
 
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.tree.ArgumentCommandNode;
 import com.mojang.brigadier.tree.CommandNode;
@@ -11,7 +12,9 @@ import g_mungus.munguscript.engine.host.Restriction;
 import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
 import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
+import g_mungus.munguscript.engine_impl.tree.ScriptLiteralNode;
 import g_mungus.munguscript.language.type.ScriptType;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.Collection;
@@ -22,7 +25,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-/** Takes the engine's argument types apart on a server, and puts them back together on a client. */
+/**
+ * Takes the engine's argument types and literal nodes apart on a server, and puts them back together
+ * on a client.
+ */
 final class ScriptArgumentsImpl implements ScriptArguments {
 
     @Override
@@ -38,6 +44,11 @@ final class ScriptArgumentsImpl implements ScriptArguments {
 
     private static ArgumentDescription.ValueOrLiteral describe(ValueOrLiteralArgument slot) {
         return new ArgumentDescription.ValueOrLiteral(slot.literal(), slot.target());
+    }
+
+    @Override
+    public boolean suggestedOnlyOnceStarted(CommandNode<?> node) {
+        return node instanceof ScriptLiteralNode<?> literal && literal.onlyOnceStarted();
     }
 
     @Override
@@ -69,6 +80,12 @@ final class ScriptArgumentsImpl implements ScriptArguments {
             }
             rebuilt.add(argument);
             return argument;
+        }
+
+        @Override
+        public <S> CommandNode<S> literal(String name, @Nullable Command<S> command, @Nullable CommandNode<S> redirect,
+                                          boolean suggestedOnlyOnceStarted) {
+            return new ScriptLiteralNode<>(name, command, redirect, null, suggestedOnlyOnceStarted);
         }
 
         private ValueOrLiteralArgument slot(ArgumentDescription.ValueOrLiteral description) {

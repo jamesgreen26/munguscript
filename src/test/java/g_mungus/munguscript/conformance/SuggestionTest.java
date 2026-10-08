@@ -1,5 +1,7 @@
 package g_mungus.munguscript.conformance;
 
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.suggestion.Suggestion;
 import g_mungus.munguscript.conformance.TestTypes.Point;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
@@ -50,6 +52,26 @@ class SuggestionTest {
         List<String> afterCounter = h.suggest("log value_of(counter ", null);
         assertEquals(List.of("value"), afterCounter);
         assertTrue(h.suggest("log value_of(counter l", null).contains("lines"));
+    }
+
+    @EngineTest
+    void aHostsOwnDispatcherOnlySuggestsConvertedWordsOnceStarted(Harness h) throws Exception {
+        // As a host does that leads its own command into a chain, and lets Brigadier suggest the rest.
+        CommandDispatcher<TestHost.Source> host = new CommandDispatcher<>();
+        host.register(LiteralArgumentBuilder.<TestHost.Source>literal("temp")
+                .redirect(h.grafted.getChild("munguscript:value/test:celsius")));
+        List<String> afterTemp = brigadierSuggestions(host, "temp ", h);
+        assertTrue(afterTemp.contains("warm"), afterTemp.toString());
+        assertFalse(afterTemp.contains(">"), afterTemp.toString());
+        assertFalse(afterTemp.contains("lines"), afterTemp.toString());
+        assertTrue(brigadierSuggestions(host, "temp r", h).contains("rounded_down"));
+        assertTrue(brigadierSuggestions(host, "temp l", h).contains("lines"));
+    }
+
+    private static List<String> brigadierSuggestions(CommandDispatcher<TestHost.Source> dispatcher, String command,
+                                                     Harness h) {
+        return dispatcher.getCompletionSuggestions(dispatcher.parse(command, h.source())).join().getList().stream()
+                .map(Suggestion::getText).toList();
     }
 
     @EngineTest
