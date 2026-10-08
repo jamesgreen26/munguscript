@@ -3,6 +3,7 @@ package g_mungus.munguscript.engine_impl.tree;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.tree.ArgumentCommandNode;
 import com.mojang.brigadier.tree.CommandNode;
+import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
 import g_mungus.munguscript.language.type.TypeKey;
 
 import java.util.ArrayList;
@@ -33,6 +34,8 @@ import java.util.Set;
  * value                      every getter -&gt; value/&lt;type&gt;
  * value/&lt;type&gt;              every mapper from the type -&gt; value/&lt;output&gt;
  * converted/&lt;chain&gt;         the words &lt;chain&gt; holds only through a conversion: the same nodes
+ * converted/&lt;chain&gt;/&lt;word&gt;  the arguments a word of &lt;chain&gt; takes only through a conversion,
+ *                            after its own: the same nodes
  * </pre>
  */
 public final class ScriptTree<S> {
@@ -137,6 +140,37 @@ public final class ScriptTree<S> {
     }
 
     /**
+     * For each argument of a mapper word that has more than one, the types the arguments after it
+     * take: those through a conversion, which are tried if it does not read. Empty for the rest.
+     */
+    public Map<ArgumentType<?>, List<TypeKey>> laterTargets() {
+        Map<ArgumentType<?>, List<TypeKey>> later = new IdentityHashMap<>();
+        for (CommandNode<S> chain : chainNodes()) {
+            for (CommandNode<S> word : chain.getChildren()) {
+                List<ArgumentCommandNode<S, ?>> arguments = argumentsOf(word);
+                for (int i = 0; i < arguments.size(); i++) {
+                    List<TypeKey> targets = new ArrayList<>();
+                    for (ArgumentCommandNode<S, ?> after : arguments.subList(i + 1, arguments.size())) {
+                        if (after.getType() instanceof ValueOrLiteralArgument slot) {
+                            targets.add(slot.target());
+                        }
+                    }
+                    if (!targets.isEmpty()) {
+                        later.put(arguments.get(i).getType(), targets);
+                    }
+                }
+            }
+        }
+        return later;
+    }
+
+    private List<CommandNode<S>> chainNodes() {
+        List<CommandNode<S>> chains = new ArrayList<>(valueChains.values());
+        chains.addAll(conditionChains.values());
+        return chains;
+    }
+
+    /**
      * Whether {@code node} is an executor, after a condition or not. Told by its shape, which
      * survives being sent: an executor's argument ends the chain, a mapper's leads on.
      */
@@ -155,7 +189,7 @@ public final class ScriptTree<S> {
         parents.addAll(conditionChains.values());
         for (CommandNode<S> parent : parents) {
             for (CommandNode<S> word : parent.getChildren()) {
-                argumentOf(word).ifPresent(argument -> owners.put(argument.getType(), word.getName()));
+                argumentsOf(word).forEach(argument -> owners.put(argument.getType(), word.getName()));
             }
         }
         return owners;
@@ -176,7 +210,25 @@ public final class ScriptTree<S> {
         return direct.isPresent() ? direct : argumentOf(literal).flatMap(ScriptTree::typeAfter);
     }
 
-    /** The argument written after a mapper or executor literal, if it takes one. */
+    /** What a mapper literal can give, through each of its arguments if it takes them. */
+    public static List<TypeKey> outputsOf(CommandNode<?> literal) {
+        Optional<TypeKey> direct = typeAfter(literal);
+        return direct.isPresent() ? List.of(direct.get())
+                : argumentsOf(literal).stream().flatMap(argument -> typeAfter(argument).stream()).distinct().toList();
+    }
+
+    /** Every argument written after a literal, in the order Brigadier tries them. */
+    public static <S> List<ArgumentCommandNode<S, ?>> argumentsOf(CommandNode<S> literal) {
+        List<ArgumentCommandNode<S, ?>> arguments = new ArrayList<>();
+        for (CommandNode<S> child : literal.getChildren()) {
+            if (child instanceof ArgumentCommandNode<S, ?> argument) {
+                arguments.add(argument);
+            }
+        }
+        return arguments;
+    }
+
+    /** The argument written after a mapper or executor literal, if it takes one: its own, if it has more. */
     public static <S> Optional<ArgumentCommandNode<S, ?>> argumentOf(CommandNode<S> literal) {
         for (CommandNode<S> child : literal.getChildren()) {
             if (child instanceof ArgumentCommandNode<S, ?> argument) {

@@ -20,6 +20,7 @@ import g_mungus.munguscript.engine_impl.tree.TypeNames;
 import g_mungus.munguscript.language.type.TypeKey;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -120,6 +121,30 @@ public final class ExpressionReader<S> {
         @SuppressWarnings("unchecked")
         ParseResults<S> parse = (ParseResults<S>) gives.parse();
         return new Result.Readable<>(parse, gives.type(), as.get());
+    }
+
+    /**
+     * Reads {@code valueOf} as {@link #read(ValueOf, String, List, Object)} does, for an argument
+     * with others tried after it, which take {@code later}. It is refused if it is better used as
+     * one of those, so that it reaches them: {@code level > value_of(x)}, for a double x, compares
+     * as doubles rather than rounding x.
+     *
+     * @param later the types the later arguments take, in the order they are tried
+     */
+    public Result<S> read(ValueOf valueOf, String owner, List<TypeKey> targets, List<TypeKey> later,
+                          @Nullable S source) {
+        if (later.isEmpty()) {
+            return read(valueOf, owner, targets, source);
+        }
+        List<TypeKey> all = new ArrayList<>(targets);
+        all.addAll(later);
+        Result<S> result = read(valueOf, owner, all, source);
+        if (result instanceof Result.Readable<S> readable && !targets.contains(readable.as())) {
+            return unreadable(valueOf, "value_of(" + valueOf.expression() + ") gives " + names.of(readable.type())
+                    + ", so " + owner + " uses it as " + names.of(readable.as()) + ", not "
+                    + names.of(targets.get(0)));
+        }
+        return result;
     }
 
     /** Whether {@code expression} reads, in full, as a {@code type}. */

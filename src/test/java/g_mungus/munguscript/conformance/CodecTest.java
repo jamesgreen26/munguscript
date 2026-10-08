@@ -51,7 +51,8 @@ class CodecTest {
             "if level to_celsius rounded_down > 3 log x", "log value_of(level + \"x\")",
             "log value_of(counter lines)", "log value_of(literal_of(\"a b\") + \"c\")",
             "if literal_of(3) > 2 log big", "log value_of(literal_of(x y))", "if literal_of(5 log x",
-            "log value_of(lit");
+            "log value_of(lit", "if level > 5.4 log x", "set_level value_of(level + 0.5)",
+            "if level > value_of(level to_celsius) log x");
 
     private static byte[] encode(Harness h, TestHostCodec host) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();

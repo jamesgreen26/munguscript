@@ -28,11 +28,13 @@ final class ViewArguments<S> implements ArgumentLookup.ArgumentView {
     private final Suggester<S> suggester;
     private final ExpressionReader<S> expressions;
     private final Map<ArgumentType<?>, String> owners;
+    private final Map<ArgumentType<?>, List<TypeKey>> later;
 
     ViewArguments(ScriptTree<S> tree, Suggester<S> suggester, ExpressionReader<S> expressions) {
         this.suggester = suggester;
         this.expressions = expressions;
         this.owners = tree.argumentOwners();
+        this.later = tree.laterTargets();
     }
 
     @Override
@@ -45,7 +47,7 @@ final class ViewArguments<S> implements ArgumentLookup.ArgumentView {
     public TypeKey check(ArgumentType<?> argument, ValueOf valueOf, List<TypeKey> targets) throws ValueOfException {
         // Parsing has no source; expressions only need one to run.
         ExpressionReader.Result<S> result = expressions.read(valueOf, owners.getOrDefault(argument, UNKNOWN_OWNER),
-                targets, null);
+                targets, later.getOrDefault(argument, List.of()), null);
         if (result instanceof ExpressionReader.Result.Readable<S> readable) {
             return readable.as();
         } else if (result instanceof ExpressionReader.Result.Unreadable<S> unreadable) {

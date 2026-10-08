@@ -88,6 +88,37 @@ class ConversionTest {
     }
 
     @EngineTest
+    void anIntComparesWithADouble(Harness h) {
+        h.world.level = 12;
+        assertEquals(true, h.valueOf("level > 5.4", BOOLEAN));
+        assertEquals(false, h.valueOf("level < 11.5", BOOLEAN));
+        assertEquals(true, h.valueOf("level > 11", BOOLEAN));
+        h.run("""
+                #def twelve = 12
+                if twelve > 5.4 log yes
+                """);
+        h.assertCalls(call("log", "yes"));
+    }
+
+    @EngineTest
+    void anIntTakesADoublesMapperWhenItsOwnCannotReadTheArgument(Harness h) {
+        h.world.level = 12;
+        assertEquals(13, h.valueOf("level + 1", INT));
+        assertEquals(12.5, h.valueOf("level + 0.5", DOUBLE));
+        // The int's + cannot be followed by > 0.5, so the double's reads the whole expression.
+        assertEquals(true, h.valueOf("level + 1 > 0.5", BOOLEAN));
+    }
+
+    @EngineTest
+    void aValueOfIsNotRoundedWhereALaterArgumentTakesItAsItIs(Harness h) {
+        h.world.level = 5;
+        // 5 < 5.4 as doubles, where rounding 5.4 to an int would make it 5 < 5.
+        assertEquals(true, h.valueOf("level < value_of(level to_celsius + 0.4)", BOOLEAN));
+        assertEquals(false, h.valueOf("level > value_of(level to_celsius + 0.4)", BOOLEAN));
+        assertEquals(true, h.valueOf("level > value_of(level - 1)", BOOLEAN));
+    }
+
+    @EngineTest
     void aDoubleTooLargeForAnIntIsAFailure(Harness h) {
         h.world.level = 7;
         assertEquals("Could not use value_of(level * 10000000000) as int: 70000000000.00 is too large to be used"

@@ -53,6 +53,9 @@ public final class TypeGraph {
                 if (converted || !tree.isConverted(mapper)) {
                     ScriptTree.outputOf(mapper).ifPresent(outputs::add);
                 }
+                if (converted) {
+                    outputs.addAll(ScriptTree.outputsOf(mapper));
+                }
             }
         });
         return new TypeGraph(edges);

@@ -41,9 +41,12 @@ import java.util.function.Function;
  * boolean come the executors, and inside a {@code value_of} nothing does.
  *
  * <p>A type usable as others also holds their mappers, which convert the value before they map it.
+ * Where it has a mapper of the same name, theirs are tried after its own, as further arguments of
+ * the same word: {@code level > 5.4} reads as a double's {@code >}, since an int's cannot read 5.4.
  */
 public final class TreeBuilder<S> {
     private static final TypeKey BOOLEAN = BuiltInTypes.BOOLEAN.key();
+    private static final TypeKey STRING = BuiltInTypes.STRING.key();
 
     private final Registrations registrations;
     private final BuildEnvironment environment;
@@ -127,9 +130,13 @@ public final class TreeBuilder<S> {
     }
 
     /**
-     * Gives each type's chains the mappers of the types it is usable as, nearest first, where the
-     * chain has no word of the same name. Done after the executors, so that after a condition an
-     * executor wins over a mapper the boolean only takes from a type it is usable as.
+     * Gives each type's chains the mappers of the types it is usable as, nearest first: as words
+     * where the chain has no word of the same name, and otherwise as arguments tried after the
+     * word's own. Done after the executors, so that after a condition an executor wins over a mapper
+     * the boolean only takes from a type it is usable as.
+     *
+     * <p>Not after a word of the value's own through a string, which everything is usable as: an
+     * int's {@code +} does not join {@code level + "x"}.
      */
     private void inheritMappers(Chain valueChain, Chain conditionChain) {
         Map<TypeKey, List<ScriptNode>> mappersFrom = new LinkedHashMap<>();
@@ -140,10 +147,11 @@ public final class TreeBuilder<S> {
             TypeKey from = type.key();
             for (TypeKey as : conversions.usableAs(from)) {
                 Function<@Nullable Object, @Nullable Object> convert = value -> conversions.convert(value, from, as);
+                boolean after = !as.equals(STRING);
                 for (ScriptNode mapper : mappersFrom.getOrDefault(as, List.of())) {
-                    valueChain.inherit(from, mapper, convert);
+                    valueChain.inherit(from, mapper, convert, after);
                     if (conditionChain.chains.containsKey(output(mapper))) {
-                        conditionChain.inherit(from, mapper, convert);
+                        conditionChain.inherit(from, mapper, convert, after);
                     }
                 }
             }
@@ -197,15 +205,38 @@ public final class TreeBuilder<S> {
             return new ScriptArgumentNode<>(name, argument, last.apply(step), chains.get(type.key()), more.apply(step));
         }
 
-        /** {@code mapper} in the chain of {@code type}, if there is one and it has no word of that name yet. */
-        void inherit(TypeKey type, ScriptNode mapper, Function<@Nullable Object, @Nullable Object> convert) {
+        /**
+         * {@code mapper} in the chain of {@code type}, if there is one: as a word if it has no word of
+         * that name yet, or else, if {@code after}, as an argument tried after those of the mapper
+         * word it has.
+         */
+        void inherit(TypeKey type, ScriptNode mapper, Function<@Nullable Object, @Nullable Object> convert,
+                     boolean after) {
             CommandNode<S> chain = chains.get(type);
-            if (chain != null && chain.getChild(mapper.displayName()) == null) {
-                CommandNode<S> word = step(mapper, convert, true);
+            if (chain == null) {
+                return;
+            }
+            CommandNode<S> word = chain.getChild(mapper.displayName());
+            if (word == null) {
+                word = step(mapper, convert, true);
                 chain.addChild(word);
                 converted.computeIfAbsent(chain, node -> ScriptLiteralNode.place(NodeNames.converted(node.getName())))
                         .addChild(word);
+            } else if (after && mapper instanceof ScriptArgumentMapper<?, ?, ?> argumentMapper
+                    && ScriptTree.argumentOf(word).isPresent() && !ScriptTree.isExecutor(word)) {
+                CommandNode<S> argument = argument(argumentMapper, convert, unusedName(word, argumentMapper, type));
+                word.addChild(argument);
+                String chainName = chain.getName();
+                String wordName = word.getName();
+                converted.computeIfAbsent(word, node ->
+                        ScriptLiteralNode.place(NodeNames.convertedArguments(chainName, wordName))).addChild(argument);
             }
+        }
+
+        /** A name for another argument of {@code word}: the mapper's hint, unless an argument there has it. */
+        private String unusedName(CommandNode<S> word, ScriptArgumentMapper<?, ?, ?> mapper, TypeKey type) {
+            String name = mapper.argumentHint();
+            return word.getChild(name) == null ? name : name + " (" + type + " as " + input(mapper) + ")";
         }
 
         /** @param converted whether the chain holds it only through a conversion */
@@ -216,14 +247,20 @@ public final class TreeBuilder<S> {
                 Step<S> step = actions.step(node, null, convert);
                 return new ScriptLiteralNode<>(node.displayName(), last.apply(step), next, more.apply(step), converted);
             }
-            Step<S> step = actions.step(node, mapper.argumentHint(), convert);
+            CommandNode<S> literal = new ScriptLiteralNode<>(node.displayName(), null, null, null, converted);
+            literal.addChild(argument(mapper, convert, mapper.argumentHint()));
+            return literal;
+        }
+
+        /** The argument after an argument mapper's word, named {@code name}, leading on to its output's chain. */
+        private CommandNode<S> argument(ScriptArgumentMapper<?, ?, ?> mapper,
+                                        Function<@Nullable Object, @Nullable Object> convert, String name) {
+            Step<S> step = actions.step(mapper, name, convert);
             ArgumentType<?> type = mapper.argumentScriptType() == null
                     ? mapper.argumentType(environment)
                     : slot(mapper.argumentType(environment), mapper.argumentScriptType().key());
-            CommandNode<S> literal = new ScriptLiteralNode<>(node.displayName(), null, null, null, converted);
-            literal.addChild(new ScriptArgumentNode<>(mapper.argumentHint(), type, last.apply(step), next,
-                    more.apply(step)));
-            return literal;
+            return new ScriptArgumentNode<>(name, type, last.apply(step), chains.get(output(mapper)),
+                    more.apply(step));
         }
     }
 

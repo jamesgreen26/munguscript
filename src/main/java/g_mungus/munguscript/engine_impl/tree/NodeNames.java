@@ -56,6 +56,14 @@ public final class NodeNames {
         return CONVERTED + chain;
     }
 
+    /**
+     * The node that lists the arguments a chain node's {@code word} takes only through a conversion,
+     * after its own: a mapper of the same name, of a type the value is usable as.
+     */
+    public static String convertedArguments(String chain, String word) {
+        return converted(chain) + CHAIN_SEPARATOR + word;
+    }
+
     public static boolean isConverted(String name) {
         return name.startsWith(CONVERTED);
     }
