@@ -66,6 +66,18 @@ public interface ScriptView<S> {
     List<Highlight> highlightExpression(String expression, S source,
                                         @Nullable CommandPreProcessor.Prepared preProcessing);
 
+    /**
+     * Suggestions at {@code cursor} in an expression standing alone, as {@link #suggest} gives them
+     * inside a {@code value_of(}: an expression as {@link ScriptEngine#evaluate} is given it,
+     * starting with a getter or an alias. Ranges are in {@code expression}.
+     *
+     * @param type          the type the expression should give: only what can lead to it is
+     *                      offered. Null for any type.
+     * @param preProcessing a script's pre-processing, whose tokens are offered as well
+     */
+    CompletableFuture<Suggestions> suggestExpression(String expression, int cursor, S source, @Nullable TypeKey type,
+                                                     @Nullable CommandPreProcessor.Prepared preProcessing);
+
     /** Answers whether expressions read as a type, for {@code source}. */
     ExpressionProbe probe(S source);
 

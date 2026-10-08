@@ -78,6 +78,17 @@ public final class Suggester<S> {
         return atEnd(commands.parse(text, source), text, null, source, tokens);
     }
 
+    /**
+     * Suggestions at the end of {@code input}, in an expression standing alone from {@code start}:
+     * as inside a {@code value_of(}, but with nothing to close.
+     *
+     * @param targets the types the expression should give, or null for any
+     */
+    public List<Suggestion> inLoneExpression(String input, int start, @Nullable Set<TypeKey> targets, S source,
+                                             Tokens tokens) {
+        return atEnd(expressions.parse(input, start, input.length(), source), input, targets, source, tokens);
+    }
+
     /** Suggestions for one of the engine's argument types, as Brigadier asks a type for them. */
     @SuppressWarnings("unchecked")
     public <T> CompletableFuture<Suggestions> forArgument(ArgumentType<?> argument, CommandContext<T> context,
@@ -129,8 +140,13 @@ public final class Suggester<S> {
                 suggestions.addAll(argument(argument, at.parent.getName(), context, builder, source, tokens));
             }
         }
-        expressionTargets(at.parent, targets).ifPresent(wanted ->
-                suggestions.addAll(tokens.expressions(range, typed, type -> reach(typed).reachesAny(type, wanted))));
+        if (isValueRoot(at.parent) && targets == null) {
+            // An expression standing alone, of any type.
+            suggestions.addAll(tokens.expressions(range, typed, type -> true));
+        } else {
+            expressionTargets(at.parent, targets).ifPresent(wanted -> suggestions.addAll(
+                    tokens.expressions(range, typed, type -> reach(typed).reachesAny(type, wanted))));
+        }
         return suggestions;
     }
 

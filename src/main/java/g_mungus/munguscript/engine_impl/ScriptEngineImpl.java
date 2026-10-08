@@ -137,6 +137,13 @@ final class ScriptEngineImpl<S> implements ScriptEngine<S> {
     }
 
     @Override
+    public CompletableFuture<Suggestions> suggestExpression(String expression, int cursor, S source,
+                                                            @Nullable TypeKey type,
+                                                            CommandPreProcessor.@Nullable Prepared preProcessing) {
+        return view.suggestExpression(expression, cursor, source, type, preProcessing);
+    }
+
+    @Override
     public List<Highlight> highlightExpression(String expression, S source,
                                                CommandPreProcessor.@Nullable Prepared preProcessing) {
         return view.highlightExpression(expression, source, preProcessing);

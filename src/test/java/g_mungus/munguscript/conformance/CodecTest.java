@@ -7,6 +7,7 @@ import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.ScriptView;
 import g_mungus.munguscript.engine.codec.ScriptTreeCodec;
 import g_mungus.munguscript.language.type.ScriptType;
+import g_mungus.munguscript.language.type.TypeKey;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -106,6 +107,17 @@ class CodecTest {
                 "level to_celsius > 20.5")) {
             assertEquals(HighlightTest.expressionHighlights(h.engine, h, expression, null),
                     HighlightTest.expressionHighlights(client, h, expression, null), expression);
+        }
+    }
+
+    @EngineTest
+    void aDecodedViewSuggestsLoneExpressionsAsTheEnginesOwnViewDoes(Harness h) throws IOException {
+        ScriptView<TestHost.Source> client = roundTrip(h);
+        for (String expression : List.of("", "lev", "level ", "here plus value_of(ori", "level to_celsius ")) {
+            for (TypeKey type : Arrays.asList(null, TestTypes.POINT.key())) {
+                assertEquals(SuggestionTest.suggestExpression(h.engine, h, expression, type, null),
+                        SuggestionTest.suggestExpression(client, h, expression, type, null), expression + " " + type);
+            }
         }
     }
 

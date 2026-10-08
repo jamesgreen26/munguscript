@@ -2,12 +2,16 @@ package g_mungus.munguscript.conformance;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.StringRange;
 import com.mojang.brigadier.suggestion.Suggestion;
 import g_mungus.munguscript.conformance.TestTypes.Point;
+import g_mungus.munguscript.engine.ScriptView;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
 import g_mungus.munguscript.language.node.ScriptNodes;
 import g_mungus.munguscript.language.type.ScriptType;
+import g_mungus.munguscript.language.type.TypeKey;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -88,6 +92,52 @@ class SuggestionTest {
         assertFalse(custom.suggest("vent value_of(", null).contains("core"));
         assertTrue(custom.suggest("vent value_of(c", null).contains("core"));
         assertTrue(custom.parsesFully("vent value_of(core)"));
+    }
+
+    static List<String> suggestExpression(ScriptView<TestHost.Source> view, Harness h, String expression,
+                                          @Nullable TypeKey type, CommandPreProcessor.@Nullable Prepared prepared) {
+        return view.suggestExpression(expression, expression.length(), h.source(), type, prepared).join().getList()
+                .stream().map(Suggestion::getText).toList();
+    }
+
+    @EngineTest
+    void aLoneExpressionIsSuggestedAsInsideAValueOf(Harness h) {
+        List<String> start = suggestExpression(h.engine, h, "", null, null);
+        assertTrue(start.containsAll(List.of("here", "level", "message", "counter")), start.toString());
+        assertFalse(start.contains(")"), start.toString());
+        List<String> afterLevel = suggestExpression(h.engine, h, "level ", null, null);
+        assertTrue(afterLevel.containsAll(List.of(">", "scale", "to_celsius")), afterLevel.toString());
+        assertFalse(afterLevel.contains(")"), afterLevel.toString());
+        assertEquals(List.of("level"), suggestExpression(h.engine, h, "lev", null, null));
+    }
+
+    @EngineTest
+    void aLoneExpressionOnlyOffersWhatLeadsToTheTypeWanted(Harness h) {
+        List<String> afterHere = suggestExpression(h.engine, h, "here ", TestTypes.POINT.key(), null);
+        assertTrue(afterHere.contains("plus"), afterHere.toString());
+        assertFalse(afterHere.contains("x"), afterHere.toString());
+        assertTrue(suggestExpression(h.engine, h, "here ", null, null).contains("x"));
+    }
+
+    @EngineTest
+    void aLoneExpressionsSuggestionsAreLocatedInIt(Harness h) {
+        List<Suggestion> suggestions = h.engine.suggestExpression("here pl", 7, h.source(), null, null).join().getList();
+        assertEquals(1, suggestions.size(), suggestions.toString());
+        assertEquals("plus", suggestions.get(0).getText());
+        assertEquals(StringRange.between(5, 7), suggestions.get(0).getRange());
+    }
+
+    @EngineTest
+    void aLoneExpressionOffersAndExpandsAliases(Harness h) {
+        CommandPreProcessor.Prepared prepared = h.prepare(ALIASES);
+        List<String> start = suggestExpression(h.engine, h, "", null, prepared);
+        assertTrue(start.containsAll(List.of("spot", "hot", "here")), start.toString());
+        assertEquals(List.of("spot"), suggestExpression(h.engine, h, "sp", null, prepared));
+        List<String> afterSpot = suggestExpression(h.engine, h, "spot ", null, prepared);
+        assertTrue(afterSpot.containsAll(List.of("x", "y", "plus")), afterSpot.toString());
+        List<String> forPoint = suggestExpression(h.engine, h, "", TestTypes.POINT.key(), prepared);
+        assertTrue(forPoint.contains("spot"), forPoint.toString());
+        assertFalse(forPoint.contains("hot"), forPoint.toString());
     }
 
     @EngineTest

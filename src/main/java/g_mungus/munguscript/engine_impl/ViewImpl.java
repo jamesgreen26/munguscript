@@ -2,6 +2,7 @@ package g_mungus.munguscript.engine_impl;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.ParseResults;
+import com.mojang.brigadier.context.StringRange;
 import com.mojang.brigadier.suggestion.Suggestion;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
@@ -40,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -119,6 +121,26 @@ final class ViewImpl<S> implements ScriptView<S> {
                     suggestion.getTooltip()));
         }
         return CompletableFuture.completedFuture(Suggester.collect(command, suggestions));
+    }
+
+    @Override
+    public CompletableFuture<Suggestions> suggestExpression(String expression, int cursor, S source,
+                                                            @Nullable TypeKey type,
+                                                            CommandPreProcessor.@Nullable Prepared preProcessing) {
+        // Pre-processors rewrite commands, where an expression starts inside a value_of(, so the
+        // expression is suggested for inside one, with nothing to close.
+        int offset = ValueOf.OPEN.length();
+        String typed = ValueOf.OPEN + expression.substring(0, cursor);
+        Rewritten text = preProcessing == null ? Rewritten.unchanged(typed) : preProcess(typed, preProcessing, source);
+        Tokens tokens = preProcessing == null ? Tokens.NONE : new Tokens(preProcessing.tokens());
+        List<Suggestion> suggestions = new ArrayList<>();
+        for (Suggestion suggestion : suggester.inLoneExpression(text.text(), offset,
+                type == null ? null : Set.of(type), source, tokens)) {
+            StringRange range = text.map().toOriginal(suggestion.getRange());
+            suggestions.add(new Suggestion(StringRange.between(Math.max(range.getStart() - offset, 0),
+                    Math.max(range.getEnd() - offset, 0)), suggestion.getText(), suggestion.getTooltip()));
+        }
+        return CompletableFuture.completedFuture(Suggester.collect(expression, suggestions));
     }
 
     @Override
