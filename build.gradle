@@ -1,6 +1,7 @@
 plugins {
     id 'java-library'
     id 'application'
+    id 'maven-publish'
 }
 
 repositories {
@@ -54,6 +55,16 @@ tasks.named('javadoc', Javadoc) {
 
 test {
     useJUnitPlatform()
+}
+
+// `./gradlew publishToMavenLocal` installs g_mungus:munguscript into ~/.m2 for Maven projects to use.
+// Brigadier is not on Maven Central, so they must also list https://libraries.minecraft.net.
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
 }
 
 // `./gradlew run` runs run/main.mungus; `./gradlew run --args=path/to/other.munguscript` runs another.
