@@ -69,6 +69,8 @@ from **Language** on is `g_mungus.munguscript.engine`, which depends on it.
 - **Suggestions.** What Brigadier's suggestion API returns for script arguments, `value_of`
   contents and pre-processor tokens. A node with applicability is only suggested where the host
   says it applies; it still parses and runs everywhere.
+- **Highlighting.** What each word of a command is (keyword, executor, getter, mapper, argument,
+  alias, or unparsed), located in the text as the player wrote it. Choosing colours is the host's.
 - **Views.** Parsing, suggesting and probing without running anything, both over a tree the
   library built and over one that was built elsewhere and sent to the host.
 - **Tree codec.** Encoding the tree under the graft, with its argument types and restrictions,

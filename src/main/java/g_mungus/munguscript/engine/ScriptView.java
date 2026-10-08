@@ -9,6 +9,7 @@ import g_mungus.munguscript.language.type.ScriptType;
 import g_mungus.munguscript.language.type.TypeKey;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -41,6 +42,29 @@ public interface ScriptView<S> {
      */
     CompletableFuture<Suggestions> suggest(String command, int cursor, S source,
                                            @Nullable CommandPreProcessor.Prepared preProcessing);
+
+    /**
+     * What each word of a command is, for syntax highlighting, in order and without overlaps;
+     * spaces are not covered. When a script's pre-processing is given, the command is pre-processed
+     * first, and a word it rewrote is highlighted as its token: an alias as {@link Highlight.Kind#ALIAS},
+     * a token that stands for an argument as {@link Highlight.Kind#ARGUMENT}.
+     *
+     * <p>A {@code value_of(...)} is an argument, but only {@code value_of(} and its {@code )} are
+     * highlighted as one; the expression inside is highlighted word by word, even while it is
+     * incomplete. Whatever cannot be read is {@link Highlight.Kind#UNPARSED}. This says nothing about
+     * errors otherwise: a {@code value_of} of the wrong type is still highlighted as written, and its
+     * problem comes from {@link #parse}.
+     */
+    List<Highlight> highlight(String command, S source, @Nullable CommandPreProcessor.Prepared preProcessing);
+
+    /**
+     * What each word of an expression is, as {@link #highlight} says for a command: an expression
+     * as a {@code value_of(...)} holds it, or as {@link ScriptEngine#evaluate} is given it, starting
+     * with a getter or an alias. When a script's pre-processing is given, aliases and other tokens in
+     * it are expanded and highlighted as they are in a command.
+     */
+    List<Highlight> highlightExpression(String expression, S source,
+                                        @Nullable CommandPreProcessor.Prepared preProcessing);
 
     /** Answers whether expressions read as a type, for {@code source}. */
     ExpressionProbe probe(S source);

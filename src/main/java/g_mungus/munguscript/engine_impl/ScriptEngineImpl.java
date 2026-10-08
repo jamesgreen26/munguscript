@@ -3,6 +3,7 @@ package g_mungus.munguscript.engine_impl;
 import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
+import g_mungus.munguscript.engine.Highlight;
 import g_mungus.munguscript.engine.ScriptEngine;
 import g_mungus.munguscript.engine.ScriptHost;
 import g_mungus.munguscript.engine.failure.ScriptFailure;
@@ -128,6 +129,17 @@ final class ScriptEngineImpl<S> implements ScriptEngine<S> {
     public CompletableFuture<Suggestions> suggest(String command, int cursor, S source,
                                                   CommandPreProcessor.@Nullable Prepared preProcessing) {
         return view.suggest(command, cursor, source, preProcessing);
+    }
+
+    @Override
+    public List<Highlight> highlight(String command, S source, CommandPreProcessor.@Nullable Prepared preProcessing) {
+        return view.highlight(command, source, preProcessing);
+    }
+
+    @Override
+    public List<Highlight> highlightExpression(String expression, S source,
+                                               CommandPreProcessor.@Nullable Prepared preProcessing) {
+        return view.highlightExpression(expression, source, preProcessing);
     }
 
     @Override

@@ -96,6 +96,20 @@ class CodecTest {
     }
 
     @EngineTest
+    void aDecodedViewHighlightsAsTheEnginesOwnViewDoes(Harness h) throws IOException {
+        ScriptView<TestHost.Source> client = roundTrip(h);
+        for (String command : COMMANDS) {
+            assertEquals(HighlightTest.highlights(h.engine, h, command, null),
+                    HighlightTest.highlights(client, h, command, null), command);
+        }
+        for (String expression : List.of("level scale value_of(level)", "here plus 1 2 x", "level sc",
+                "level to_celsius > 20.5")) {
+            assertEquals(HighlightTest.expressionHighlights(h.engine, h, expression, null),
+                    HighlightTest.expressionHighlights(client, h, expression, null), expression);
+        }
+    }
+
+    @EngineTest
     void aDecodedViewKnowsWhichWordsAreThereOnlyThroughAConversion(Harness h) throws IOException {
         ScriptView<TestHost.Source> client = roundTrip(h);
         List<String> afterCelsius = suggest(client, h, "if level to_celsius ");

@@ -208,5 +208,6 @@ and a view over a received tree both work them out from the types they were give
 | Which types a type is usable as, and how it converts | `ScriptType.usableAs`, `Conversions` |
 | Which overload runs | `OverloadedArgument`, `Overloads` |
 | What is suggested | `Suggester`, `RestrictionIndex` |
+| How words are classified for highlighting | `Highlighter` (`ScriptView.highlight`) |
 | Checking registrations | `Registry`, `NodeTypes` |
 | Finding the tree again on a client | `ScriptTree.find`, `ArgumentLookup`, `ScriptArgumentsImpl` |

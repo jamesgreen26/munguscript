@@ -6,6 +6,7 @@ import com.mojang.brigadier.suggestion.Suggestion;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.RootCommandNode;
+import g_mungus.munguscript.engine.Highlight;
 import g_mungus.munguscript.engine.ScriptView;
 import g_mungus.munguscript.engine.ScriptViewHost;
 import g_mungus.munguscript.engine.host.Restriction;
@@ -15,14 +16,17 @@ import g_mungus.munguscript.engine.preprocess.PreProcessContext;
 import g_mungus.munguscript.engine.preprocess.PreProcessed;
 import g_mungus.munguscript.engine.preprocess.Rewriter;
 import g_mungus.munguscript.engine.preprocess.Rewritten;
+import g_mungus.munguscript.engine.preprocess.SourceMap;
 import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
+import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
+import g_mungus.munguscript.engine_impl.highlight.Highlighter;
 import g_mungus.munguscript.engine_impl.preprocess.AliasPreProcessor;
 import g_mungus.munguscript.engine_impl.suggest.RestrictionIndex;
 import g_mungus.munguscript.engine_impl.suggest.Suggester;
 import g_mungus.munguscript.engine_impl.suggest.Tokens;
-import g_mungus.munguscript.engine_impl.tree.ScriptTree;
 import g_mungus.munguscript.engine_impl.tree.Conversions;
+import g_mungus.munguscript.engine_impl.tree.ScriptTree;
 import g_mungus.munguscript.engine_impl.tree.TypeGraph;
 import g_mungus.munguscript.engine_impl.tree.TypeNames;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
@@ -52,6 +56,7 @@ final class ViewImpl<S> implements ScriptView<S> {
     private final ExpressionReader<S> expressions;
     private final Suggester<S> suggester;
     private final ViewArguments<S> arguments;
+    private final Highlighter<S> highlighter;
 
     /**
      * @param types the types scripts may use; the built-in ones are always known
@@ -73,6 +78,7 @@ final class ViewImpl<S> implements ScriptView<S> {
         this.suggester = new Suggester<>(tree, graph, TypeGraph.withoutConversions(tree), expressions, commands,
                 new RestrictionIndex<>(host, restrictions));
         this.arguments = new ViewArguments<>(tree, suggester, expressions);
+        this.highlighter = new Highlighter<>(tree, commands, expressions);
     }
 
     /** A view over a tree built elsewhere, found under the node it was grafted under. */
@@ -113,6 +119,33 @@ final class ViewImpl<S> implements ScriptView<S> {
                     suggestion.getTooltip()));
         }
         return CompletableFuture.completedFuture(Suggester.collect(command, suggestions));
+    }
+
+    @Override
+    public List<Highlight> highlight(String command, S source, CommandPreProcessor.@Nullable Prepared preProcessing) {
+        if (preProcessing == null) {
+            return highlighter.highlight(command, command, SourceMap.IDENTITY, List.of(), source);
+        }
+        PreProcessed processed = preProcessing.process(command,
+                new PreProcessContext(probe(source), host.hostContext(source)));
+        return highlighter.highlight(command, processed.command(), processed.sourceMap(), preProcessing.tokens(),
+                source);
+    }
+
+    @Override
+    public List<Highlight> highlightExpression(String expression, S source,
+                                               CommandPreProcessor.@Nullable Prepared preProcessing) {
+        if (preProcessing == null) {
+            return highlighter.highlightExpression(expression, expression, 0, expression.length(), SourceMap.IDENTITY,
+                    List.of(), 0, expression.length(), source);
+        }
+        // Pre-processors rewrite commands, where an expression starts inside a value_of(...).
+        String wrapped = ValueOf.OPEN + expression + ")";
+        PreProcessed processed = preProcessing.process(wrapped,
+                new PreProcessContext(probe(source), host.hostContext(source)));
+        String text = processed.command();
+        return highlighter.highlightExpression(wrapped, text, ValueOf.OPEN.length(), text.length() - 1,
+                processed.sourceMap(), preProcessing.tokens(), ValueOf.OPEN.length(), expression.length(), source);
     }
 
     /**
