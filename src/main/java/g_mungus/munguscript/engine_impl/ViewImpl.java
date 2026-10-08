@@ -2,7 +2,9 @@ package g_mungus.munguscript.engine_impl;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.ParseResults;
+import com.mojang.brigadier.context.CommandContextBuilder;
 import com.mojang.brigadier.context.StringRange;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestion;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
@@ -10,10 +12,12 @@ import com.mojang.brigadier.tree.RootCommandNode;
 import g_mungus.munguscript.engine.Highlight;
 import g_mungus.munguscript.engine.ScriptView;
 import g_mungus.munguscript.engine.ScriptViewHost;
+import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.engine.host.Restriction;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
 import g_mungus.munguscript.engine.preprocess.ExpressionProbe;
 import g_mungus.munguscript.engine.preprocess.PreProcessContext;
+import g_mungus.munguscript.engine.preprocess.PreProcessDiagnostic;
 import g_mungus.munguscript.engine.preprocess.PreProcessed;
 import g_mungus.munguscript.engine.preprocess.Rewriter;
 import g_mungus.munguscript.engine.preprocess.Rewritten;
@@ -23,6 +27,7 @@ import g_mungus.munguscript.engine_impl.argument.CommandText;
 import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
+import g_mungus.munguscript.engine_impl.failure.FailureDescriber;
 import g_mungus.munguscript.engine_impl.highlight.Highlighter;
 import g_mungus.munguscript.engine_impl.preprocess.AliasPreProcessor;
 import g_mungus.munguscript.engine_impl.suggest.RestrictionIndex;
@@ -61,6 +66,7 @@ final class ViewImpl<S> implements ScriptView<S> {
     private final Suggester<S> suggester;
     private final ViewArguments<S> arguments;
     private final Highlighter<S> highlighter;
+    private final FailureDescriber<S> failures;
 
     /**
      * @param types the types scripts may use; the built-in ones are always known
@@ -83,6 +89,7 @@ final class ViewImpl<S> implements ScriptView<S> {
                 new RestrictionIndex<>(host, restrictions));
         this.arguments = new ViewArguments<>(tree, suggester, expressions);
         this.highlighter = new Highlighter<>(tree, commands, expressions);
+        this.failures = new FailureDescriber<>(commands);
     }
 
     /** A view over a tree built elsewhere, found under the node it was grafted under. */
@@ -189,6 +196,35 @@ final class ViewImpl<S> implements ScriptView<S> {
             return List.of(new Highlight(StringRange.between(start, end), Highlight.Kind.ARGUMENT));
         }
         return highlightExpression(body, source, preProcessing);
+    }
+
+    @Override
+    public Optional<ScriptFailure> check(String command, S source,
+                                         CommandPreProcessor.@Nullable Prepared preProcessing) {
+        PreProcessed processed = preProcessing == null ? PreProcessed.unchanged(command)
+                : preProcessing.process(command, new PreProcessContext(probe(source), host.hostContext(source)));
+        if (!processed.diagnostics().isEmpty()) {
+            PreProcessDiagnostic diagnostic = processed.diagnostics().get(0);
+            return Optional.of(new ScriptFailure(diagnostic.message(), command, processed.command(), diagnostic.range()));
+        }
+        if (parses(commands.parse(processed.command(), source))) {
+            return Optional.empty();
+        }
+        // A syntax error is explained by parsing again, whichever error it is.
+        CommandSyntaxException failed = CommandSyntaxException.BUILT_IN_EXCEPTIONS.dispatcherUnknownCommand().create();
+        return Optional.of(failures.describe(failed, command, processed.command(), processed.sourceMap()));
+    }
+
+    /** Whether all of a command was read, to a node that can run. */
+    private static boolean parses(ParseResults<?> parse) {
+        if (parse.getReader().canRead()) {
+            return false;
+        }
+        CommandContextBuilder<?> last = parse.getContext();
+        while (last.getChild() != null) {
+            last = last.getChild();
+        }
+        return last.getCommand() != null;
     }
 
     /**

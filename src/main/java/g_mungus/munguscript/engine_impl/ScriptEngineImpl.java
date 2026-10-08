@@ -156,6 +156,12 @@ final class ScriptEngineImpl<S> implements ScriptEngine<S> {
     }
 
     @Override
+    public Optional<ScriptFailure> check(String command, S source,
+                                         CommandPreProcessor.@Nullable Prepared preProcessing) {
+        return view.check(command, source, preProcessing);
+    }
+
+    @Override
     public ExpressionProbe probe(S source) {
         return view.probe(source);
     }

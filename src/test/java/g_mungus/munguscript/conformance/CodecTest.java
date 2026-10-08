@@ -41,7 +41,7 @@ class CodecTest {
     /** Where the first node starts: after the format version and the node count. */
     private static final int FIRST_NODE = 8;
 
-    private static final List<String> COMMANDS = List.of(
+    static final List<String> COMMANDS = List.of(
             "paint red", "move 1 2", "move ~1 ~", "set_level 5", "set_level 11", "pick blue", "log \"hi\"",
             "configure 3", "configure red", "move value_of(here plus value_of(origin plus 1 1))",
             "set_level value_of(level scale 2)", "set_level value_of(here)", "set_level value_of(level",

@@ -9,10 +9,14 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import g_mungus.munguscript.engine.codec.ArgumentShape;
+import g_mungus.munguscript.engine.codec.PortableArgument;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
 import g_mungus.munguscript.language.type.ScriptType;
 import g_mungus.munguscript.language.type.TypeKey;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
@@ -76,7 +80,13 @@ final class TestTypes {
         return new Point(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
     }
 
-    static final class PointArgument implements ArgumentType<PointInput> {
+    static final class PointArgument implements ArgumentType<PointInput>, PortableArgument {
+        @Override
+        public ArgumentShape shape() {
+            ArgumentShape coordinate = new ArgumentShape.Text(ArgumentShape.Text.Kind.TOKEN);
+            return new ArgumentShape.Sequence(List.of(coordinate, coordinate));
+        }
+
         @Override
         public PointInput parse(StringReader reader) throws CommandSyntaxException {
             boolean xRelative = relative(reader);
@@ -103,8 +113,14 @@ final class TestTypes {
         }
     }
 
-    static final class ColorArgument implements ArgumentType<Color> {
+    static final class ColorArgument implements ArgumentType<Color>, PortableArgument {
         private static final SimpleCommandExceptionType UNKNOWN = new SimpleCommandExceptionType(new LiteralMessage("Unknown color"));
+
+        @Override
+        public ArgumentShape shape() {
+            return new ArgumentShape.OneOf(Arrays.stream(Color.values())
+                    .map(color -> color.name().toLowerCase(Locale.ROOT)).toList(), true);
+        }
 
         @Override
         public Color parse(StringReader reader) throws CommandSyntaxException {

@@ -6,6 +6,7 @@ import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.MungusScript;
 import g_mungus.munguscript.engine.ScriptEngine;
 import g_mungus.munguscript.engine.ScriptHost;
+import g_mungus.munguscript.engine.codec.ScriptLanguageFile;
 import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
 import g_mungus.munguscript.engine.preprocess.PreProcessContext;
@@ -16,6 +17,8 @@ import g_mungus.munguscript.language.type.BuildEnvironment;
 import g_mungus.munguscript.language.type.ScriptType;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.DataOutput;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -48,13 +51,14 @@ public final class ScriptRunner<S> {
     private final ScriptEngine<S> engine;
     private final CommandPreProcessor preProcessors;
     private final CommandDispatcher<S> dispatcher = new CommandDispatcher<>();
+    private final CommandNode<S> grafted;
 
     private ScriptRunner(Builder<S> builder) {
         this.host = builder.host;
         this.engine = MungusScript.engine(builder.host, builder.environment,
                 registrar -> builder.registrations.forEach(registrations -> registrations.accept(registrar)));
         this.preProcessors = CommandPreProcessor.chain(List.copyOf(builder.preProcessors.apply(engine)));
-        CommandNode<S> grafted = LiteralArgumentBuilder.<S>literal(GRAFT).build();
+        grafted = LiteralArgumentBuilder.<S>literal(GRAFT).build();
         dispatcher.getRoot().addChild(grafted);
         engine.graft(grafted);
         dispatcher.register(LiteralArgumentBuilder.<S>literal(RUN)
@@ -74,6 +78,14 @@ public final class ScriptRunner<S> {
     /** The engine this runner built, for parsing, suggesting and probing. */
     public ScriptEngine<S> engine() {
         return engine;
+    }
+
+    /**
+     * Writes this runner's language as a {@link ScriptLanguageFile}, for tools that read scripts
+     * without the host's code, such as an editor.
+     */
+    public void writeLanguage(DataOutput out) throws IOException {
+        new ScriptLanguageFile().write(engine, grafted, host.defaultNamespace(), out);
     }
 
     /** Runs a script given as text, one command per line. */

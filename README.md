@@ -32,7 +32,11 @@ takes it. Where an argument goes, an alias's name is just that word.
   language. Start from `MungusScript` and implement `ScriptHost`, or only `ScriptViewHost` for a
   program that parses and suggests but never runs, such as a client. `engine.codec` encodes the
   engine's tree on a server and decodes it into a view on a client; the host writes only its own
-  argument types and applicabilities (`HostCodec`).
+  argument types and applicabilities (`HostCodec`). For a tool without the host's code, such as
+  an editor, `ScriptLanguageFile` writes a whole language to one file (`ScriptRunner.writeLanguage`
+  does it for a runner): the tree, the host's types and what they are usable as, and each argument
+  type by its shape. A host's own argument type gives its shape by being a `PortableArgument`;
+  one that does not is read loosely, as a word or a quoted string.
 - `g_mungus.munguscript.runner`: runs whole scripts in one place, for a host that needs no
   dispatcher or graft of its own. `ScriptRunner` builds the engine, runs a script line by line
   until one fails, and returns what ran and what stopped it (`ScriptResult`, `ScriptProblem`),

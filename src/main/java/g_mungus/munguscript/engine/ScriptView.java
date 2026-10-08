@@ -3,6 +3,7 @@ package g_mungus.munguscript.engine;
 import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
+import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
 import g_mungus.munguscript.engine.preprocess.ExpressionProbe;
 import g_mungus.munguscript.language.type.ScriptType;
@@ -90,6 +91,17 @@ public interface ScriptView<S> {
      */
     CompletableFuture<Suggestions> suggestExpression(String expression, int cursor, S source, @Nullable TypeKey type,
                                                      @Nullable CommandPreProcessor.Prepared preProcessing);
+
+    /**
+     * What is wrong with a command as it is written, without running it: whether pre-processing
+     * it, if a script's pre-processing is given, finds a problem, and otherwise whether it parses to
+     * the end, to something that can run. Empty if it does. The failure's range is in
+     * {@code command}, as written.
+     *
+     * <p>This finds what is wrong with how a command is written. What only running it can find,
+     * such as a value that is out of range or a file that is missing, it cannot.
+     */
+    Optional<ScriptFailure> check(String command, S source, @Nullable CommandPreProcessor.Prepared preProcessing);
 
     /** Answers whether expressions read as a type, for {@code source}. */
     ExpressionProbe probe(S source);
