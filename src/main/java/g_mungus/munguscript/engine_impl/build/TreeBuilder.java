@@ -9,6 +9,7 @@ import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
 import g_mungus.munguscript.engine_impl.run.NodeActions;
 import g_mungus.munguscript.engine_impl.run.Step;
+import g_mungus.munguscript.engine_impl.tree.Conversions;
 import g_mungus.munguscript.engine_impl.tree.NodeNames;
 import g_mungus.munguscript.engine_impl.tree.ScriptArgumentNode;
 import g_mungus.munguscript.engine_impl.tree.ScriptLiteralNode;
@@ -23,7 +24,9 @@ import g_mungus.munguscript.language.type.ScriptType;
 import g_mungus.munguscript.language.type.TypeKey;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -35,6 +38,8 @@ import java.util.function.Function;
  * redirects to the chain of the type it gives, so a chain of any length is a walk through a fixed
  * number of nodes. Conditions and {@code value_of} use separate chains because after a condition's
  * boolean come the executors, and inside a {@code value_of} nothing does.
+ *
+ * <p>A type usable as others also holds their mappers, which convert the value before they map it.
  */
 public final class TreeBuilder<S> {
     private static final TypeKey BOOLEAN = BuiltInTypes.BOOLEAN.key();
@@ -43,6 +48,7 @@ public final class TreeBuilder<S> {
     private final BuildEnvironment environment;
     private final NodeActions<S> actions;
     private final ArgumentLookup lookup;
+    private final Conversions conversions;
     private final TypeGraph graph;
 
     public TreeBuilder(Registrations registrations, BuildEnvironment environment, NodeActions<S> actions,
@@ -51,8 +57,10 @@ public final class TreeBuilder<S> {
         this.environment = environment;
         this.actions = actions;
         this.lookup = lookup;
+        this.conversions = Conversions.of(registrations.types());
         this.graph = TypeGraph.of(registrations.mappers().stream()
-                .map(mapper -> new TypeGraph.Edge(input(mapper), output(mapper))).toList());
+                .map(mapper -> new TypeGraph.Edge(input(mapper), output(mapper))).toList())
+                .with(conversions.edges());
     }
 
     public ScriptTree<S> build() {
@@ -102,9 +110,34 @@ public final class TreeBuilder<S> {
                 afterCondition.addChild(executor(group, argument, run, elseNode));
             }
         }
+        inheritMappers(valueChain, conditionChain);
         script.addChild(new ScriptLiteralNode<>(NodeNames.IF, null, condition, actions.startCondition(false)));
         script.addChild(new ScriptLiteralNode<>(NodeNames.UNLESS, null, condition, actions.startCondition(true)));
         return new ScriptTree<>(script, condition, value, valueChains, conditionChains);
+    }
+
+    /**
+     * Gives each type's chains the mappers of the types it is usable as, nearest first, where the
+     * chain has no word of the same name. Done after the executors, so that after a condition an
+     * executor wins over a mapper the boolean only takes from a type it is usable as.
+     */
+    private void inheritMappers(Chain valueChain, Chain conditionChain) {
+        Map<TypeKey, List<ScriptNode>> mappersFrom = new LinkedHashMap<>();
+        for (ScriptNode mapper : registrations.mappers()) {
+            mappersFrom.computeIfAbsent(input(mapper), key -> new ArrayList<>()).add(mapper);
+        }
+        for (ScriptType<?> type : registrations.types()) {
+            TypeKey from = type.key();
+            for (TypeKey as : conversions.usableAs(from)) {
+                Function<@Nullable Object, @Nullable Object> convert = value -> conversions.convert(value, from, as);
+                for (ScriptNode mapper : mappersFrom.getOrDefault(as, List.of())) {
+                    valueChain.inherit(from, mapper, convert);
+                    if (conditionChain.chains.containsKey(output(mapper))) {
+                        conditionChain.inherit(from, mapper, convert);
+                    }
+                }
+            }
+        }
     }
 
     /** {@code name <argument>}, where the argument runs the overload, followed by {@code else} if given. */
@@ -141,12 +174,24 @@ public final class TreeBuilder<S> {
 
         /** A getter or mapper literal, with its argument if it takes one, leading on to its output's chain. */
         CommandNode<S> step(ScriptNode node) {
+            return step(node, Function.identity());
+        }
+
+        /** {@code mapper} in the chain of {@code type}, if there is one and it has no word of that name yet. */
+        void inherit(TypeKey type, ScriptNode mapper, Function<@Nullable Object, @Nullable Object> convert) {
+            CommandNode<S> chain = chains.get(type);
+            if (chain != null && chain.getChild(mapper.displayName()) == null) {
+                chain.addChild(step(mapper, convert));
+            }
+        }
+
+        private CommandNode<S> step(ScriptNode node, Function<@Nullable Object, @Nullable Object> convert) {
             CommandNode<S> next = chains.get(output(node));
             if (!(node instanceof ScriptArgumentMapper<?, ?, ?> mapper)) {
-                Step<S> step = actions.step(node, null);
+                Step<S> step = actions.step(node, null, convert);
                 return new ScriptLiteralNode<>(node.displayName(), last.apply(step), next, more.apply(step));
             }
-            Step<S> step = actions.step(node, mapper.argumentHint());
+            Step<S> step = actions.step(node, mapper.argumentHint(), convert);
             ArgumentType<?> type = mapper.argumentScriptType() == null
                     ? mapper.argumentType(environment)
                     : slot(mapper.argumentType(environment), mapper.argumentScriptType().key());

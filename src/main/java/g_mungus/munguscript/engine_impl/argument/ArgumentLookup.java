@@ -57,10 +57,10 @@ public final class ArgumentLookup {
 
         /**
          * Reads a {@code value_of(...)} written in {@code argument}'s slot, and says which of
-         * {@code targets} it gives.
+         * {@code targets} it is used as: the one it gives, or else the nearest it is usable as.
          *
          * @param targets the types the slot takes, in order of preference
-         * @throws ValueOfException if it gives none of them, or does not read at all
+         * @throws ValueOfException if it is usable as none of them, or does not read at all
          */
         TypeKey check(ArgumentType<?> argument, ValueOf valueOf, List<TypeKey> targets) throws ValueOfException;
     }

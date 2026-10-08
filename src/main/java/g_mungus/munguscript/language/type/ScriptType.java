@@ -4,6 +4,8 @@ import com.mojang.brigadier.arguments.ArgumentType;
 import g_mungus.munguscript.language.node.ScriptContext;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -19,6 +21,10 @@ import java.util.function.Function;
  * <p>An {@linkplain #opaque opaque} type, such as a ship, has no literal form. It only comes out of
  * getters and mappers.
  *
+ * <p>A type can be {@linkplain #usableAs usable as} other types: wherever one of those is wanted,
+ * a value of this type is converted without a word in the script, and the mappers of those types
+ * can follow it. Every type is usable as a string, through its printed form if it is writable.
+ *
  * @param <T> the value scripts see
  */
 public final class ScriptType<T> {
@@ -26,12 +32,15 @@ public final class ScriptType<T> {
     private final Class<T> javaClass;
     private final String hint;
     private final @Nullable Literal<T, ?> literal;
+    private final List<Conversion<T, ?>> conversions;
 
-    private ScriptType(TypeKey key, Class<T> javaClass, String hint, @Nullable Literal<T, ?> literal) {
+    private ScriptType(TypeKey key, Class<T> javaClass, String hint, @Nullable Literal<T, ?> literal,
+                       List<Conversion<T, ?>> conversions) {
         this.key = key;
         this.javaClass = javaClass;
         this.hint = hint;
         this.literal = literal;
+        this.conversions = List.copyOf(conversions);
     }
 
     /** Starts a writable type whose argument already parses to the value itself, like an int. */
@@ -51,7 +60,27 @@ public final class ScriptType<T> {
 
     /** A type scripts can hold but never write, like a ship. */
     public static <T> ScriptType<T> opaque(TypeKey key, Class<T> javaClass) {
-        return new ScriptType<>(key, javaClass, key.path(), null);
+        return new ScriptType<>(key, javaClass, key.path(), null, List.of());
+    }
+
+    /**
+     * This type, also usable wherever a {@code target} is wanted, converted by {@code convert}. The
+     * conversion is part of the type, so a client that registers the same type knows it too.
+     * Conversions chain: a ship usable as an entity that is usable as a position is usable as a
+     * position.
+     */
+    public <U> ScriptType<T> usableAs(ScriptType<U> target, Function<T, U> convert) {
+        if (target.key.equals(key)) {
+            throw new IllegalArgumentException("Script type " + key + " cannot be usable as itself");
+        }
+        List<Conversion<T, ?>> more = new ArrayList<>(conversions);
+        more.add(new Conversion<>(target, convert));
+        return new ScriptType<>(key, javaClass, hint, literal, more);
+    }
+
+    /** The types this one is declared usable as, in the order they were declared. */
+    public List<Conversion<T, ?>> conversions() {
+        return conversions;
     }
 
     public TypeKey key() {
@@ -83,6 +112,10 @@ public final class ScriptType<T> {
     @Override
     public String toString() {
         return "ScriptType[" + key + "]";
+    }
+
+    /** That a value of one type can be used as a {@code target}, and how it is turned into one. */
+    public record Conversion<T, U>(ScriptType<U> target, Function<T, U> convert) {
     }
 
     /**
@@ -185,7 +218,8 @@ public final class ScriptType<T> {
                 throw new IllegalStateException("Script type " + key + " needs an argument type and parse;"
                         + " use ScriptType.opaque for a type scripts cannot write");
             }
-            return new ScriptType<>(key, javaClass, hint, new Literal<>(argumentType, argumentClass, resolve, print, parse));
+            return new ScriptType<>(key, javaClass, hint, new Literal<>(argumentType, argumentClass, resolve, print, parse),
+                    List.of());
         }
     }
 }

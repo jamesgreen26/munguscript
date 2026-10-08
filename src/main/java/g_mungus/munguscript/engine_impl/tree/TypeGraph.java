@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Which types mappers can turn which other types into. Used to leave out of the tree, and out of
+ * Which types mappers, and conversions, can turn which other types into. Used to leave out of the tree, and out of
  * suggestions, whatever cannot lead to the type wanted, and to explain a {@code value_of} that
  * gives the wrong type.
  */
@@ -42,6 +42,14 @@ public final class TypeGraph {
             }
         });
         return new TypeGraph(edges);
+    }
+
+    /** This graph with {@code more} edges, such as those of the conversions between types. */
+    public TypeGraph with(Collection<Edge> more) {
+        Map<TypeKey, Set<TypeKey>> all = new HashMap<>();
+        edges.forEach((from, to) -> all.put(from, new HashSet<>(to)));
+        more.forEach(edge -> all.computeIfAbsent(edge.from(), key -> new HashSet<>()).add(edge.to()));
+        return new TypeGraph(all);
     }
 
     /** Whether a value of {@code from} is, or can be mapped into, {@code to}. */

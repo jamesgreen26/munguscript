@@ -90,8 +90,7 @@ class FailureTest {
     @EngineTest
     void aValueOfOfTheWrongTypeIsRejectedWhileParsing(Harness h) {
         assertTrue(h.parsesFully("set_level value_of(level)"));
-        for (String command : List.of("set_level value_of(here)", "move value_of(level)", "log value_of(favourite)",
-                "paint value_of(message)")) {
+        for (String command : List.of("set_level value_of(here)", "move value_of(level)", "paint value_of(message)")) {
             assertFalse(h.parsesFully(command), command);
             h.failure(command);
         }

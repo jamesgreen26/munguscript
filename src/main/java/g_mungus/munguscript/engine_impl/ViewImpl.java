@@ -22,6 +22,7 @@ import g_mungus.munguscript.engine_impl.suggest.RestrictionIndex;
 import g_mungus.munguscript.engine_impl.suggest.Suggester;
 import g_mungus.munguscript.engine_impl.suggest.Tokens;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
+import g_mungus.munguscript.engine_impl.tree.Conversions;
 import g_mungus.munguscript.engine_impl.tree.TypeGraph;
 import g_mungus.munguscript.engine_impl.tree.TypeNames;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
@@ -66,8 +67,9 @@ final class ViewImpl<S> implements ScriptView<S> {
         RootCommandNode<S> root = new RootCommandNode<>();
         tree.script().getChildren().forEach(root::addChild);
         this.commands = new CommandDispatcher<>(root);
-        TypeGraph graph = TypeGraph.of(tree);
-        this.expressions = new ExpressionReader<>(tree, graph, names);
+        Conversions conversions = Conversions.of(this.types.values());
+        TypeGraph graph = TypeGraph.of(tree).with(conversions.edges());
+        this.expressions = new ExpressionReader<>(tree, graph, conversions, names);
         this.suggester = new Suggester<>(tree, graph, expressions, commands, new RestrictionIndex<>(host, restrictions));
         this.arguments = new ViewArguments<>(tree, suggester, expressions);
     }

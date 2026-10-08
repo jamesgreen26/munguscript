@@ -43,7 +43,8 @@ class CodecTest {
             "set_level value_of(level scale 2)", "set_level value_of(here)", "set_level value_of(level",
             "if level is_positive paint red else paint blue", "paint red else paint blue",
             "if here x == 7 log a else if level > 0 log b else log c", "if level log x", "log value_of(message matches \"h\" as_string)",
-            "frobnicate", "move value_of(", "configure value_of(lev");
+            "frobnicate", "move value_of(", "configure value_of(lev", "log value_of(favourite)",
+            "if level to_celsius rounded_down > 3 log x", "log value_of(level + \"x\")");
 
     private static byte[] encode(Harness h, TestHostCodec host) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();

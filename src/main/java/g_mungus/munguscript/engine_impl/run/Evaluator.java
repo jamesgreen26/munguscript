@@ -41,13 +41,19 @@ public final class Evaluator<S> {
         if (result instanceof ExpressionReader.Result.Unreadable<S> unreadable) {
             throw new ScriptFault(unreadable.reason(), valueOf.input(), unreadable.range());
         }
+        ExpressionReader.Result.Readable<S> readable = (ExpressionReader.Result.Readable<S>) result;
         try {
-            expressions.dispatcher().execute(((ExpressionReader.Result.Readable<S>) result).parse());
+            expressions.dispatcher().execute(readable.parse());
         } catch (ScriptFault fault) {
             throw fault.within(valueOf.input());
         } catch (CommandSyntaxException e) {
             throw new ScriptFault(Reasons.of(e), valueOf.input(), valueOf.range(), e);
         }
-        return run.value();
+        try {
+            return expressions.conversions().convert(run.value(), readable.type(), readable.as());
+        } catch (RuntimeException e) {
+            throw new ScriptFault("Could not use value_of(" + valueOf.expression() + ") as " + readable.as().path()
+                    + ": " + Reasons.of(e), valueOf.input(), valueOf.range(), e);
+        }
     }
 }

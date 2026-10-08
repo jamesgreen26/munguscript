@@ -9,6 +9,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import g_mungus.munguscript.language.builtin.BuiltInTypes;
 import g_mungus.munguscript.language.type.ScriptType;
 import g_mungus.munguscript.language.type.TypeKey;
 
@@ -58,7 +59,8 @@ final class TestTypes {
     static final ScriptType<Double> CELSIUS = ScriptType.writable(key("celsius"), Double.class)
             .argument(DoubleArgumentType.doubleArg())
             .parse(text -> Double.parseDouble(text.trim()))
-            .build();
+            .build()
+            .usableAs(BuiltInTypes.DOUBLE, degrees -> degrees);
 
     static final ScriptType<Counter> COUNTER = ScriptType.opaque(key("counter"), Counter.class);
 

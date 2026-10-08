@@ -79,7 +79,7 @@ public final class OverloadedArgument implements ArgumentType<ParsedOverload> {
         return new ParsedOverload(longest, runnable);
     }
 
-    /** A {@code value_of(...)} goes to the variants that take the type it gives. */
+    /** A {@code value_of(...)} goes to the variants that take the type it is used as. */
     private ParsedOverload valueOf(ValueOf valueOf) throws CommandSyntaxException {
         TypeKey gives = lookup.view().check(this, valueOf,
                 variants.stream().map(ValueOrLiteralArgument::target).distinct().toList());

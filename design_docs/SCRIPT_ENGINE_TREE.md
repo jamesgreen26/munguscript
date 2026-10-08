@@ -50,7 +50,7 @@ the same code.
 executors and a `value_of`'s value is followed by nothing. Condition chains exist only for types
 that can still reach a boolean (`TypeGraph`), so a condition that can never become one fails while
 it parses. Value chains hold every mapper; whether a `value_of` gives the type wanted is checked
-by reading it (§5).
+by reading it (§5). A chain node also holds the mappers of the types its type is usable as (§7).
 
 **Executors are built twice.** Under `munguscript:script` they end the line. Under
 `munguscript:condition/script:boolean` each one may be followed by its own `else`, which leads back
@@ -91,8 +91,9 @@ Two things to notice:
 
 - `value_of(read_file + " world")` is **one token** in the command, but it is **checked as it
   parses**: the slot reads the expression through the view and fails the parse if it cannot give a
-  string (§5). `write_file value_of(read_file lines)` does not parse at all: "value_of(read_file
-  lines) gives int, but write_file needs string".
+  string (§5). Every type is usable as a string (§7), so here any expression that reads in full
+  would do; where an int is wanted, `set_level value_of(read_file)` does not parse at all:
+  "value_of(read_file) gives string, but set_level needs int".
 - The first `write_file` is under `m:condition/script:boolean` and can take `else`. The last one is
   under `m:script` and cannot: the same executor, built in two places.
 
@@ -130,11 +131,12 @@ It is read twice:
 
 1. **While the command parses**, the slot asks the view to read it (`ViewArguments.check`). The
    view parses the expression without a source and looks at where it stopped: if it ended at a
-   chain node of a type the slot takes, it reads; otherwise the reason is a syntax error at the
+   chain node of a type the slot takes, or one usable as such a type (§7), it reads; otherwise the reason is a syntax error at the
    `value_of(` (`ValueOfException`). A nested `value_of` is checked by its own slot during this
    parse, and its explanation is passed outward.
 2. **When its executor or mapper runs**, `Evaluator` copies the source with a fresh `ValueRun`,
-   reads the expression again, and runs the parse.
+   reads the expression again, runs the parse, and converts the result if the slot takes a type
+   it is only usable as.
 
 For `read_file + " world"`, where the slot takes a string:
 
@@ -164,7 +166,26 @@ When the command runs, `Overloads.choose` asks the host to match each kept varia
 first *explicit* match, otherwise the first *unrestricted* one, otherwise none. None is not a
 failure: the command does nothing and returns 0.
 
-## 7. Where to Look
+## 7. Conversions
+
+A type can be usable as others: those it declares with `ScriptType.usableAs`, and a string, through
+its printed form if it is writable and `toString` otherwise. Conversions chain, and a value goes the
+shortest way; a type usable as another in two ways as short fails the build (`Conversions`).
+
+Conversions are code on the types, like the types themselves, so they are not in the tree. The engine
+and a view over a received tree both work them out from the types they were given, and agree.
+
+- **Chains.** `TreeBuilder` adds to each type's chain node the mappers of the types it is usable as,
+  nearest first, where the chain node has no word of that name: a type's own mapper wins, so after an
+  int `+` takes an int, not a string. Each copied mapper's `Step` converts the value before mapping
+  it. After a condition the copies are added last, so an executor wins over a mapper the boolean
+  only has as a string.
+- **Slots.** A `value_of` is read as the type the slot takes if it gives one, otherwise as the
+  nearest type it is usable as (`Conversions.best`), and `Evaluator` converts the result. A string is
+  the last resort: it is chosen only when the value is usable as none of the other types. Among
+  overloads, a `value_of` goes to the variants that take the type it is read as (§6).
+
+## 8. Where to Look
 
 | To change | Start at |
 |---|---|
@@ -172,6 +193,7 @@ failure: the command does nothing and returns 0.
 | What a step does when it runs | `NodeActions`, `Step`, `CommandRun`, `ValueRun` |
 | How `value_of(...)` is read, checked or explained | `ValueOrLiteralArgument`, `ExpressionReader`, `Shape`, `Evaluator` |
 | Which types a chain can reach | `TypeGraph` |
+| Which types a type is usable as, and how it converts | `ScriptType.usableAs`, `Conversions` |
 | Which overload runs | `OverloadedArgument`, `Overloads` |
 | What is suggested | `Suggester`, `RestrictionIndex` |
 | Checking registrations | `Registry`, `NodeTypes` |

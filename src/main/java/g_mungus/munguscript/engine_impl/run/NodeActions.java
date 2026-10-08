@@ -11,6 +11,7 @@ import g_mungus.munguscript.language.node.ScriptNode;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * What the engine's nodes do when Brigadier runs them: the commands and redirect modifiers the
@@ -31,7 +32,13 @@ public final class NodeActions<S> {
 
     /** A getter or mapper as a step in a chain. */
     public Step<S> step(ScriptNode node, @Nullable String argumentName) {
-        return new Step<>(node, argumentName, host, slots);
+        return step(node, argumentName, Function.identity());
+    }
+
+    /** A mapper in the chain of a type that is usable as its input: {@code convert} turns the value into one. */
+    public Step<S> step(ScriptNode node, @Nullable String argumentName,
+                        Function<@Nullable Object, @Nullable Object> convert) {
+        return new Step<>(node, argumentName, host, slots, convert);
     }
 
     /** The last step of a {@code value_of}: leaves the result in the run. */

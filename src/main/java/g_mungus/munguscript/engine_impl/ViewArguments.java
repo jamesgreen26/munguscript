@@ -47,7 +47,7 @@ final class ViewArguments<S> implements ArgumentLookup.ArgumentView {
         ExpressionReader.Result<S> result = expressions.read(valueOf, owners.getOrDefault(argument, UNKNOWN_OWNER),
                 targets, null);
         if (result instanceof ExpressionReader.Result.Readable<S> readable) {
-            return readable.type();
+            return readable.as();
         } else if (result instanceof ExpressionReader.Result.Unreadable<S> unreadable) {
             throw new ValueOfException(unreadable.reason(), valueOf.input(), unreadable.range());
         }

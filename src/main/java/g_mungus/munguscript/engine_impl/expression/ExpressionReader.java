@@ -13,6 +13,7 @@ import g_mungus.munguscript.engine_impl.argument.CommandText;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.argument.ValueOfException;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
+import g_mungus.munguscript.engine_impl.tree.Conversions;
 import g_mungus.munguscript.engine_impl.tree.TypeGraph;
 import g_mungus.munguscript.engine_impl.tree.TypeNames;
 import g_mungus.munguscript.language.type.TypeKey;
@@ -32,15 +33,22 @@ import java.util.Optional;
  */
 public final class ExpressionReader<S> {
     private final TypeGraph graph;
+    private final Conversions conversions;
     private final TypeNames names;
     private final RootCommandNode<S> root = new RootCommandNode<>();
     private final CommandDispatcher<S> dispatcher = new CommandDispatcher<>(root);
 
-    public ExpressionReader(ScriptTree<S> tree, TypeGraph graph, TypeNames names) {
+    public ExpressionReader(ScriptTree<S> tree, TypeGraph graph, Conversions conversions, TypeNames names) {
         this.graph = graph;
+        this.conversions = conversions;
         this.names = names;
         // Brigadier only parses from a dispatcher's root, so the getters are put under one of its own.
         tree.value().getChildren().forEach(root::addChild);
+    }
+
+    /** Which types each type is usable as, and how a value becomes one. */
+    public Conversions conversions() {
+        return conversions;
     }
 
     /** The dispatcher expressions are parsed and run with. Its root stands for the tree's value node. */
@@ -87,7 +95,8 @@ public final class ExpressionReader<S> {
 
     /**
      * Reads {@code valueOf} where {@code owner} takes any of {@code targets}. A {@code value_of}
-     * nested in it has already been checked by its own argument slot while this one was parsed.
+     * nested in it has already been checked by its own argument slot while this one was parsed. It
+     * is read as the target it gives, or else the nearest one it is usable as.
      *
      * @param targets in order of preference; a failure is explained against the first
      */
@@ -99,12 +108,13 @@ public final class ExpressionReader<S> {
         if (!(shape instanceof Shape.Gives<?> gives)) {
             return unreadable(valueOf, explain(shape, valueOf, owner, targets.get(0)));
         }
-        if (!targets.contains(gives.type())) {
+        Optional<TypeKey> as = conversions.best(gives.type(), targets);
+        if (as.isEmpty()) {
             return unreadable(valueOf, wrongType(valueOf, gives.type(), owner, targets.get(0)));
         }
         @SuppressWarnings("unchecked")
         ParseResults<S> parse = (ParseResults<S>) gives.parse();
-        return new Result.Readable<>(parse, gives.type());
+        return new Result.Readable<>(parse, gives.type(), as.get());
     }
 
     /** Whether {@code expression} reads, in full, as a {@code type}. */
@@ -175,7 +185,8 @@ public final class ExpressionReader<S> {
     /** An expression that can be used where it stands, or why not. */
     public sealed interface Result<S> {
 
-        record Readable<S>(ParseResults<S> parse, TypeKey type) implements Result<S> {
+        /** It gives a {@code type}, which is used as an {@code as}: the same type, or one it is usable as. */
+        record Readable<S>(ParseResults<S> parse, TypeKey type, TypeKey as) implements Result<S> {
         }
 
         /** Why not, worded for the script's author, and the {@code value_of(...)} at fault. */
