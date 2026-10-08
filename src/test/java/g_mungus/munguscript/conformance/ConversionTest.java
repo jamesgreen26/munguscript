@@ -4,6 +4,8 @@ import g_mungus.munguscript.conformance.TestTypes.Color;
 import g_mungus.munguscript.language.node.ScriptNodes;
 import g_mungus.munguscript.language.type.ScriptType;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static g_mungus.munguscript.conformance.World.call;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.BOOLEAN;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.DOUBLE;
@@ -64,6 +66,53 @@ class ConversionTest {
         custom.world.favourite = Color.BLUE;
         custom.run("show value_of(level to_celsius)\nshow value_of(favourite)");
         custom.assertCalls(call("show", 4.0), call("show", "blue"));
+    }
+
+    @EngineTest
+    void anIntAndADoubleAreUsableAsEachOther(Harness h) {
+        h.world.level = 7;
+        assertEquals(7.0, h.valueOf("level", DOUBLE));
+        // To the nearest int, halves up.
+        assertEquals(4, h.valueOf("level / 2", INT));
+        assertEquals(2, h.valueOf("level / 4", INT));
+        h.run("set_level value_of(level / 2)");
+        h.assertCalls(call("set_level", 4));
+    }
+
+    @EngineTest
+    void anIntAndADoubleTakeEachOthersMappers(Harness h) {
+        h.world.level = 7;
+        // % is the int's: the double 3.5 becomes 4 first.
+        assertEquals(1, h.valueOf("level / 2 % 3", INT));
+        assertEquals(7, h.valueOf("level rounded_up", INT));
+    }
+
+    @EngineTest
+    void aDoubleTooLargeForAnIntIsAFailure(Harness h) {
+        h.world.level = 7;
+        assertEquals("Could not use value_of(level * 10000000000) as int: 70000000000.00 is too large to be used"
+                + " as an int", h.failure("set_level value_of(level * 10000000000)").reason());
+    }
+
+    @EngineTest
+    void hostTypesCanBeUsableAsEachOther(Harness h) {
+        AtomicReference<ScriptType<Object>> later = new AtomicReference<>();
+        ScriptType<Object> first = opaque("first").usableAs(later::get, value -> value);
+        later.set(opaque("second").usableAs(first, value -> value));
+        Harness custom = h.with((registrar, world) -> {
+            registrar.registerType(first);
+            registrar.registerType(later.get());
+        });
+        assertTrue(custom.engine.type(first.key()).isPresent());
+    }
+
+    @EngineTest
+    void aTypeCannotBeUsableAsItself(Harness h) {
+        AtomicReference<ScriptType<Object>> self = new AtomicReference<>();
+        self.set(opaque("narcissus").usableAs(self::get, value -> value));
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> h.with((registrar, world) -> registrar.registerType(self.get())));
+        assertTrue(e.getMessage().contains("test:narcissus cannot be usable as itself"), e.getMessage());
     }
 
     @EngineTest

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A kind of value scripts pass around.
@@ -73,6 +74,15 @@ public final class ScriptType<T> {
         if (target.key.equals(key)) {
             throw new IllegalArgumentException("Script type " + key + " cannot be usable as itself");
         }
+        return usableAs(() -> target, convert);
+    }
+
+    /**
+     * As {@link #usableAs(ScriptType, Function)}, for a {@code target} that is not made yet: one
+     * that is itself usable as this type, as an int and a double are each usable as the other. The
+     * target is only asked for when an engine is built.
+     */
+    public <U> ScriptType<T> usableAs(Supplier<ScriptType<U>> target, Function<T, U> convert) {
         List<Conversion<T, ?>> more = new ArrayList<>(conversions);
         more.add(new Conversion<>(target, convert));
         return new ScriptType<>(key, javaClass, hint, literal, more);
@@ -115,7 +125,27 @@ public final class ScriptType<T> {
     }
 
     /** That a value of one type can be used as a {@code target}, and how it is turned into one. */
-    public record Conversion<T, U>(ScriptType<U> target, Function<T, U> convert) {
+    public static final class Conversion<T, U> {
+        private final Supplier<ScriptType<U>> target;
+        private final Function<T, U> convert;
+
+        private Conversion(Supplier<ScriptType<U>> target, Function<T, U> convert) {
+            this.target = target;
+            this.convert = convert;
+        }
+
+        /** @throws IllegalStateException if the target has not been made yet */
+        public ScriptType<U> target() {
+            ScriptType<U> type = target.get();
+            if (type == null) {
+                throw new IllegalStateException("A script type is usable as a type that has not been made yet");
+            }
+            return type;
+        }
+
+        public Function<T, U> convert() {
+            return convert;
+        }
     }
 
     /**

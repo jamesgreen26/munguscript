@@ -172,7 +172,9 @@ failure: the command does nothing and returns 0.
 
 A type can be usable as others: those it declares with `ScriptType.usableAs`, and a string, through
 its printed form if it is writable and `toString` otherwise. Conversions chain, and a value goes the
-shortest way; a type usable as another in two ways as short fails the build (`Conversions`).
+shortest way; a type usable as another in two ways as short fails the build (`Conversions`). Two
+types can be usable as each other, as an int and a double are: one of them names the other through a
+`Supplier`, which is only asked for when the engine is built.
 
 Conversions are code on the types, like the types themselves, so they are not in the tree. The engine
 and a view over a received tree both work them out from the types they were given, and agree.

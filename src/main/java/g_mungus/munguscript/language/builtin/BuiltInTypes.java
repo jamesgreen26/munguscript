@@ -24,16 +24,20 @@ public final class BuiltInTypes {
      */
     public static final String ESCAPED_NEWLINE = "\\n";
 
+    /** Usable as a {@link #DOUBLE}. */
     public static final ScriptType<Integer> INT = ScriptType.writable(key("int"), Integer.class)
             .argument(IntegerArgumentType.integer())
             .parse(text -> Integer.parseInt(text.trim()))
-            .build();
+            .build()
+            .usableAs(() -> BuiltInTypes.DOUBLE, Integer::doubleValue);
 
+    /** Usable as an {@link #INT}, rounded to the nearest one. */
     public static final ScriptType<Double> DOUBLE = ScriptType.writable(key("double"), Double.class)
             .argument(DoubleArgumentType.doubleArg())
             .print(BuiltInTypes::formatDouble)
             .parse(text -> Double.parseDouble(text.trim()))
-            .build();
+            .build()
+            .usableAs(() -> BuiltInTypes.INT, BuiltInTypes::nearestInt);
 
     public static final ScriptType<String> STRING = ScriptType.writable(key("string"), String.class)
             .argument(StringArgumentType.string())
@@ -58,6 +62,18 @@ public final class BuiltInTypes {
     /** Two decimal places, the way scripts print doubles. */
     public static String formatDouble(double value) {
         return String.format(Locale.ROOT, "%.2f", value);
+    }
+
+    /** The nearest int, halves rounded up. A double that is no number, or too large for an int, is refused. */
+    private static int nearestInt(double value) {
+        if (Double.isNaN(value)) {
+            throw new IllegalArgumentException("NaN is not a number, so it cannot be used as an int");
+        }
+        long rounded = Math.round(value);
+        if (rounded < Integer.MIN_VALUE || rounded > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(formatDouble(value) + " is too large to be used as an int");
+        }
+        return (int) rounded;
     }
 
     private static boolean parseBoolean(String text) {

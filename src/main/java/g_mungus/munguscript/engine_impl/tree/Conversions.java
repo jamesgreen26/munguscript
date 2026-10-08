@@ -44,6 +44,9 @@ public final class Conversions {
         Map<TypeKey, List<Edge>> direct = new LinkedHashMap<>();
         types.forEach(type -> direct.put(type.key(), declared(type)));
         direct.forEach((from, edges) -> edges.forEach(edge -> {
+            if (edge.to().equals(from)) {
+                throw new IllegalStateException("Script type " + from + " cannot be usable as itself");
+            }
             if (!direct.containsKey(edge.to())) {
                 throw new IllegalStateException("Script type " + from + " is usable as " + edge.to()
                         + ", which is not registered");

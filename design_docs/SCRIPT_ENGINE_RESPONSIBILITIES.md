@@ -39,8 +39,9 @@ from **Language** on is `g_mungus.munguscript.engine`, which depends on it.
 - **Generated mappers.** `as_string` and `==` for every writable type. Nothing reads a string as
   another type unless the host registers a mapper for it.
 - **Conversions.** A type declares the types it is usable as (`ScriptType.usableAs`), and every
-  type is usable as a string. A value is converted wherever one of those is wanted, and their
-  mappers can follow it, without a word in the script.
+  type is usable as a string. An int and a double are usable as each other, a double rounded to
+  the nearest int. A value is converted wherever one of those is wanted, and their mappers can
+  follow it, without a word in the script.
 - **Replacement.** A host mapper with the same name and input type as a built-in or generated
   one replaces it.
 
