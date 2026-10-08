@@ -6,3 +6,4 @@ bin/
 *.iml
 **/.DS_Store
 run/output.txt
+.mungus/

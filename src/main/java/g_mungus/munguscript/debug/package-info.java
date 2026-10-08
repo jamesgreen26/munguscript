@@ -13,5 +13,8 @@
  * <p>It is a {@code g_mungus.munguscript.runner.ScriptRunner} with a few nodes of its own and a
  * way of printing problems. Besides the language's built-in types and mappers, scripts have {@code read_file} and
  * {@code write_file}, which read and write {@code output.txt} next to the script.
+ *
+ * <p>{@link g_mungus.munguscript.debug.DebugLanguageMain} writes the debug language to a language
+ * file, so an editor such as the IntelliJ plugin can read debug scripts.
  */
 package g_mungus.munguscript.debug;

@@ -75,3 +75,13 @@ application {
 tasks.named('run') {
     workingDir = projectDir
 }
+
+// `./gradlew exportLanguage` writes the debug language to .mungus/main.mungustree, which the IntelliJ
+// plugin reads run/main.mungus by; `--args=path/to/file.mungustree` writes it elsewhere.
+tasks.register('exportLanguage', JavaExec) {
+    group = 'application'
+    description = 'Writes the debug language to a language file, for editors.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'g_mungus.munguscript.debug.DebugLanguageMain'
+    workingDir = projectDir
+}

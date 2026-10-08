@@ -7,7 +7,11 @@ import g_mungus.munguscript.runner.ScriptRunner;
 import g_mungus.munguscript.runner.SimpleSource;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -26,6 +30,17 @@ public final class DebugRunner {
     public DebugRunner(Path directory) {
         this.directory = directory;
         this.runner = ScriptRunner.builder("debug").register(DebugNodes::register).build();
+    }
+
+    /**
+     * Writes the debug language to {@code file} as a language file, for editors to read scripts by.
+     */
+    public void writeLanguage(Path file) throws IOException {
+        Path parent = file.toAbsolutePath().getParent();
+        Files.createDirectories(parent);
+        try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(Files.newOutputStream(file)))) {
+            runner.writeLanguage(out);
+        }
     }
 
     /**

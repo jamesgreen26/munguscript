@@ -1,14 +1,20 @@
 package g_mungus.munguscript.debug;
 
+import g_mungus.munguscript.engine.ScriptView;
+import g_mungus.munguscript.engine.codec.ScriptLanguageFile;
+import g_mungus.munguscript.runner.SimpleHost;
+import g_mungus.munguscript.runner.SimpleSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -28,6 +34,19 @@ class DebugRunnerTest {
 
     private String output() throws IOException {
         return Files.readString(directory.resolve(DebugNodes.OUTPUT_FILE));
+    }
+
+    @Test
+    void theLanguageCanBeWrittenForEditors() throws IOException {
+        Path file = directory.resolve(".mungus/main.mungustree");
+        new DebugRunner(directory).writeLanguage(file);
+        ScriptView<SimpleSource> view;
+        try (DataInputStream in = new DataInputStream(Files.newInputStream(file))) {
+            view = new ScriptLanguageFile().read(in, SimpleHost::new);
+        }
+        SimpleSource source = new SimpleSource(null);
+        assertEquals(Optional.empty(), view.check("write_file value_of(read_file + \" world\")", source, null));
+        assertEquals("Unknown command 'frobnicate'", view.check("frobnicate", source, null).orElseThrow().reason());
     }
 
     @Test
