@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The mappers every type that scripts can write gets for free: {@code as_string},
- * {@code as_<type>} from a string, and {@code ==} against a value of the same type. A mapper the
- * host registered with the same name and input type wins.
+ * The mappers every type that scripts can write gets for free: {@code as_string}, and {@code ==}
+ * against a value of the same type. A mapper the host registered with the same name and input type
+ * wins. Nothing is generated to read a string as another type: a host that wants one registers it.
  *
  * <p>Unlike {@link g_mungus.munguscript.language.builtin.BuiltInMappers}, these depend on which types
  * are registered, so they are made for each build.
@@ -31,8 +31,6 @@ public final class GeneratedMappers {
         if (type != BuiltInTypes.STRING) {
             mappers.add(ScriptNodes.mapper(
                     "as_string", type, BuiltInTypes.STRING, (value, context) -> literal.print(value)));
-            mappers.add(ScriptNodes.mapper(
-                    "as_" + type.key().path(), BuiltInTypes.STRING, type, (text, context) -> literal.parse(text)));
         }
         mappers.add(ScriptNodes.argumentMapper(
                 "==", type, BuiltInTypes.BOOLEAN, type,

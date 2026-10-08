@@ -16,6 +16,7 @@ import static g_mungus.munguscript.language.builtin.BuiltInTypes.DOUBLE;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.INT;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.STRING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,14 +43,14 @@ class RegistrationTest {
     @EngineTest
     void theNodesIncludeTheHostsBuiltInsAndGenerated(Harness h) {
         Set<String> names = h.engine.nodes().stream().map(ScriptNode::displayName).collect(Collectors.toSet());
-        assertTrue(names.containsAll(List.of("here", "plus", "paint", "+", "&&", "as_string", "as_point", "==")),
+        assertTrue(names.containsAll(List.of("here", "plus", "paint", "+", "&&", "as_string", "==")),
                 names.toString());
     }
 
     @EngineTest
     void writableTypesGetGeneratedMappersButOpaqueOnesDoNot(Harness h) {
         assertTrue(mapperNamesFrom(h, "point").containsAll(List.of("as_string", "==")));
-        assertTrue(mapperNamesFrom(h, "string").contains("as_point"));
+        assertFalse(mapperNamesFrom(h, "string").contains("as_point"));
         assertEquals(List.of("value"), mapperNamesFrom(h, "counter"));
     }
 

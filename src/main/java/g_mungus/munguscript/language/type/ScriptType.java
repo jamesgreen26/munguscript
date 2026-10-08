@@ -15,7 +15,7 @@ import java.util.function.Function;
  *
  * <p>A writable type can appear inline in a script: its {@link Literal} names the argument that
  * reads it, how the argument's result becomes a value, and how a value prints and parses as text.
- * The engine generates {@code as_string}, {@code as_<type>} and {@code ==} mappers for every
+ * The engine generates {@code as_string} and {@code ==} mappers for every
  * writable type.
  *
  * <p>An {@linkplain #opaque opaque} type, such as a ship, has no literal form. It only comes out of

@@ -4,12 +4,15 @@ import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.language.node.ScriptArgumentMapper;
 import g_mungus.munguscript.language.node.ScriptNodes;
 
+import java.util.List;
+
 import static g_mungus.munguscript.conformance.World.call;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.BOOLEAN;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.DOUBLE;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.INT;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.STRING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /** The mappers every engine has, and those generated for every writable type. */
 class BuiltInMappersTest {
@@ -85,37 +88,27 @@ class BuiltInMappersTest {
     }
 
     @EngineTest
-    void builtInTypesPrintAndParse(Harness h) {
+    void builtInTypesPrint(Harness h) {
         h.world.level = 7;
-        h.world.message = "42";
         assertEquals("7", h.valueOf("level as_string", STRING));
         assertEquals("3.50", h.valueOf("level / 2 as_string", STRING));
         assertEquals("true", h.valueOf("level > 1 as_string", STRING));
-        assertEquals(42, h.valueOf("message as_int", INT));
-        assertEquals(42.0, h.valueOf("message as_double", DOUBLE));
-        h.world.message = "TRUE";
-        assertEquals(true, h.valueOf("message as_boolean", BOOLEAN));
     }
 
     @EngineTest
-    void hostTypesPrintAndParse(Harness h) {
+    void hostTypesPrint(Harness h) {
         assertEquals("8", h.valueOf("here y as_string", STRING));
         assertEquals("7 8", h.valueOf("here as_string", STRING));
-        assertEquals(new TestTypes.Point(7, 8), h.valueOf("here as_string as_point", TestTypes.POINT));
         assertEquals(true, h.valueOf("here == 7 8", BOOLEAN));
         assertEquals(false, h.valueOf("favourite == blue", BOOLEAN));
-        h.world.message = "blue";
-        assertEquals(TestTypes.Color.BLUE, h.valueOf("message as_color", TestTypes.COLOR));
     }
 
     @EngineTest
-    void textThatDoesNotParseIsAFailure(Harness h) {
-        h.world.message = "seven";
-        ScriptFailure failure = h.failure("set_level value_of(message as_int)");
-        assertEquals("as_int", failure.faultText());
-        h.world.message = "maybe";
-        assertEquals("Could not evaluate 'as_boolean': Expected \"true\" or \"false\", got \"maybe\"",
-                h.failure("if message as_boolean log x").reason());
+    void nothingIsGeneratedToReadAStringAsAnotherType(Harness h) {
+        for (String command : List.of("set_level value_of(message as_int)", "move value_of(message as_point)",
+                "if message as_boolean log x")) {
+            assertFalse(h.parsesFully(command), command);
+        }
     }
 
     @EngineTest
