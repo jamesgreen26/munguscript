@@ -22,7 +22,7 @@ class DebugRunnerTest {
     private final ByteArrayOutputStream errors = new ByteArrayOutputStream();
 
     private boolean run(String script) {
-        return new DebugRunner(directory).run("run/main.munguscript", script.lines().toList(),
+        return new DebugRunner(directory).run("run/main.mungus", script.lines().toList(),
                 new PrintStream(errors, true, StandardCharsets.UTF_8));
     }
 
@@ -74,7 +74,7 @@ class DebugRunnerTest {
                 """));
         assertEquals("before", output());
         assertEquals("""
-                run/main.munguscript:2: Could not evaluate '%': / by zero
+                run/main.mungus:2: Could not evaluate '%': / by zero
                     write_file value_of(read_file lines % 0 as_string)
                                                           ^
                 """, errors.toString());
@@ -87,6 +87,6 @@ class DebugRunnerTest {
                 write_file "x"
                 """));
         assertFalse(Files.exists(directory.resolve(DebugNodes.OUTPUT_FILE)));
-        assertTrue(errors.toString().startsWith("run/main.munguscript:1: Invalid alias declaration"), errors.toString());
+        assertTrue(errors.toString().startsWith("run/main.mungus:1: Invalid alias declaration"), errors.toString());
     }
 }

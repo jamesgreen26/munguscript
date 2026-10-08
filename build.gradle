@@ -56,7 +56,7 @@ test {
     useJUnitPlatform()
 }
 
-// `./gradlew run` runs run/main.munguscript; `./gradlew run --args=path/to/other.munguscript` runs another.
+// `./gradlew run` runs run/main.mungus; `./gradlew run --args=path/to/other.munguscript` runs another.
 application {
     mainClass = 'g_mungus.munguscript.debug.ScriptDebugMain'
 }

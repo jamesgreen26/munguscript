@@ -53,7 +53,7 @@ if text lines > 0 write_file value_of(text <+ "first line\\n")
 ## Running a script
 
 ```
-./gradlew run                                  # runs run/main.munguscript
+./gradlew run                                  # runs run/main.mungus
 ./gradlew run --args=path/to/other.munguscript
 ```
 
