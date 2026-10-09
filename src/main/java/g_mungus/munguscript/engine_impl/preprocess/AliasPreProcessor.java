@@ -36,12 +36,15 @@ import java.util.regex.Pattern;
  * where an expression starts, as {@code literal_of(...)} around the literal; an argument written
  * like its name is still that argument.
  *
- * <p>The block at the top may hold definitions, comments ({@code #} lines) and blank lines, and
- * ends at the first command. A later definition of a name replaces the earlier one.
+ * <p>Comments ({@code #} lines) may stand on any line, and are skipped. Definitions stand in the
+ * block at the top, among comments and blank lines, which ends at the first command: one after it
+ * is a problem, since the commands above it could not have used it. A later definition of a name
+ * replaces the earlier one.
  */
 public final class AliasPreProcessor<S> implements CommandPreProcessor {
     private static final String DEFINE = "#def";
     private static final String COMMENT = "#";
+    private static final String AFTER_COMMANDS = "Aliases must be defined before the first command";
     private static final Pattern DECLARATION = Pattern.compile("([A-Za-z_][A-Za-z0-9_]*)\\s*=(.*)");
     private static final Pattern NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
@@ -58,17 +61,24 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
         Map<String, Alias> aliases = new LinkedHashMap<>();
         Set<Integer> consumed = new LinkedHashSet<>();
         List<PreProcessDiagnostic> diagnostics = new ArrayList<>();
+        boolean commandsStarted = false;
         for (int i = 0; i < scriptLines.size(); i++) {
             String line = scriptLines.get(i).strip();
             if (line.isEmpty()) {
                 continue;
             }
             if (!line.startsWith(COMMENT)) {
-                break;
+                commandsStarted = true;
+                continue;
             }
             consumed.add(i);
-            if (isDefinition(line)) {
-                int lineNumber = i;
+            if (!isDefinition(line)) {
+                continue;
+            }
+            int lineNumber = i;
+            if (commandsStarted) {
+                diagnostics.add(PreProcessDiagnostic.atLine(lineNumber, AFTER_COMMANDS));
+            } else {
                 define(line.substring(DEFINE.length()).strip(), aliases)
                         .ifPresent(problem -> diagnostics.add(PreProcessDiagnostic.atLine(lineNumber, problem)));
             }

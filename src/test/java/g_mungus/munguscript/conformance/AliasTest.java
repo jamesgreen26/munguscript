@@ -236,18 +236,35 @@ class AliasTest {
     }
 
     @EngineTest
-    void theDeclarationBlockIsUsedUpAndEndsAtTheFirstCommand(Harness h) {
+    void commentsMayStandOnAnyLine(Harness h) {
+        h.world.level = 4;
         CommandPreProcessor.Prepared prepared = h.prepare("""
                 # a comment
                 #def lvl = level
                 log "x"
-                # not a comment any more
+                    # indented, between commands
+                set_level value_of(lvl)
+                # last
                 """);
-        assertEquals(Set.of(0, 1), prepared.consumedLines());
-        assertEquals("Unknown command '#'", h.failure("""
+        assertEquals(Set.of(0, 1, 3, 5), prepared.consumedLines());
+        h.run("""
                 log "x"
-                # not a comment any more
-                """).reason());
+                # between commands
+                set_level value_of(level)
+                """);
+        h.assertCalls(call("log", "x"), call("set_level", 4));
+    }
+
+    @EngineTest
+    void aDefinitionAfterTheFirstCommandIsAProblemAndNothingRuns(Harness h) {
+        List<PreProcessDiagnostic> diagnostics = h.diagnostics("""
+                #def lvl = level
+                log "x"
+                #def later = level
+                """);
+        assertEquals(List.of(PreProcessDiagnostic.atLine(2, "Aliases must be defined before the first command")),
+                diagnostics);
+        h.assertCalls();
     }
 
     @EngineTest

@@ -19,7 +19,8 @@ write_file value_of(greeting + " world")
 `value_of(...)`): an expression, re-run wherever it is used, or a literal (a number, `true`/`false`,
 or a string, quoted or a bare word), which stands there as `literal_of(...)`. An expression starts
 with a getter or with `literal_of(...)`, which reads a literal as the first primitive type that
-takes it. Where an argument goes, an alias's name is just that word.
+takes it. Where an argument goes, an alias's name is just that word. Aliases are defined at the top
+of a script, before the first command; `#` comments may stand on any line.
 
 ## Layout
 
