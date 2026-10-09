@@ -1,5 +1,6 @@
 package g_mungus.munguscript.engine.codec;
 
+import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.MungusScript;
 import g_mungus.munguscript.engine.ScriptEngine;
@@ -9,6 +10,7 @@ import g_mungus.munguscript.engine.argument.ScriptArguments;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
 import g_mungus.munguscript.language.type.ScriptType;
 import g_mungus.munguscript.language.type.TypeKey;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -41,7 +43,7 @@ public final class ScriptLanguageFile {
     /** What a language file starts with: "MGSL". */
     public static final int MAGIC = 0x4D47534C;
     /** The layout {@link #write} writes and {@link #read} reads, around the tree's own format. */
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
 
     private final ScriptTreeCodec codec;
 
@@ -50,9 +52,21 @@ public final class ScriptLanguageFile {
         this(MungusScript.arguments());
     }
 
+    /**
+     * For the engine {@link MungusScript} builds, with the shapes of argument types the host cannot
+     * make {@link PortableArgument}s, such as another library's ({@link PortableHostCodec}).
+     */
+    public ScriptLanguageFile(Function<ArgumentType<?>, @Nullable ArgumentShape> shapes) {
+        this(MungusScript.arguments(), shapes);
+    }
+
     /** For the engine whose argument types {@code arguments} describes and rebuilds. */
     public ScriptLanguageFile(ScriptArguments arguments) {
-        this.codec = new ScriptTreeCodec(arguments, new PortableHostCodec());
+        this(arguments, type -> null);
+    }
+
+    public ScriptLanguageFile(ScriptArguments arguments, Function<ArgumentType<?>, @Nullable ArgumentShape> shapes) {
+        this.codec = new ScriptTreeCodec(arguments, new PortableHostCodec(shapes));
     }
 
     /**

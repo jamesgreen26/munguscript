@@ -2,12 +2,15 @@ package g_mungus.munguscript.engine.codec;
 
 import com.mojang.brigadier.arguments.ArgumentType;
 import g_mungus.munguscript.language.node.Applicability;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * A {@link HostCodec} for clients that do not have the host's code, such as an editor: it writes
@@ -30,6 +33,7 @@ public final class PortableHostCodec implements HostCodec {
     private static final byte ONE_OF = 7;
     private static final byte SEQUENCE = 8;
     private static final byte LOOSE = 9;
+    private static final byte MATCHING = 10;
 
     /** How deep sequences may nest in what is read, so a bad file cannot recurse without end. */
     private static final int MAX_DEPTH = 16;
@@ -38,9 +42,24 @@ public final class PortableHostCodec implements HostCodec {
     public record Described(String text) implements Applicability {
     }
 
+    private final Function<ArgumentType<?>, @Nullable ArgumentShape> shapes;
+
+    /** Writes each argument type by the shape it gives itself, or that Brigadier's own have. */
+    public PortableHostCodec() {
+        this(type -> null);
+    }
+
+    /**
+     * @param shapes the shapes of argument types the host cannot make {@link PortableArgument}s,
+     *               such as another library's; null for a type it leaves to the rest
+     */
+    public PortableHostCodec(Function<ArgumentType<?>, @Nullable ArgumentShape> shapes) {
+        this.shapes = shapes;
+    }
+
     @Override
     public void writeArgumentType(DataOutput out, ArgumentType<?> type) throws IOException {
-        writeShape(out, ArgumentShape.of(type));
+        writeShape(out, ArgumentShape.of(type, shapes));
         List<String> examples = List.copyOf(type.getExamples());
         out.writeInt(examples.size());
         for (String example : examples) {
@@ -94,6 +113,10 @@ public final class PortableHostCodec implements HostCodec {
         } else if (shape instanceof ArgumentShape.Text text) {
             out.writeByte(TEXT);
             out.writeUTF(text.kind().name());
+        } else if (shape instanceof ArgumentShape.Matching matching) {
+            out.writeByte(MATCHING);
+            out.writeUTF(matching.pattern());
+            out.writeUTF(matching.description());
         } else if (shape instanceof ArgumentShape.Word word) {
             out.writeByte(WORD);
             out.writeUTF(word.word());
@@ -137,6 +160,15 @@ public final class PortableHostCodec implements HostCodec {
                     return new ArgumentShape.Text(ArgumentShape.Text.Kind.valueOf(kind));
                 } catch (IllegalArgumentException e) {
                     throw new IOException("Unknown kind of text '" + kind + "'", e);
+                }
+            }
+            case MATCHING: {
+                String pattern = in.readUTF();
+                String description = in.readUTF();
+                try {
+                    return new ArgumentShape.Matching(pattern, description);
+                } catch (PatternSyntaxException e) {
+                    throw new IOException("'" + pattern + "' is not a pattern", e);
                 }
             }
             case WORD:

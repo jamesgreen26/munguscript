@@ -8,7 +8,11 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.util.List;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * How an argument reads, in terms a client without the host's code can parse by: what a
@@ -50,6 +54,18 @@ public sealed interface ArgumentShape {
         }
     }
 
+    /**
+     * One run of characters up to the next space or {@code )}, which all of {@code pattern} must
+     * match: a coordinate such as {@code ~1}, or an id such as {@code minecraft:stone}.
+     *
+     * @param description what it is, for saying what was expected: {@code a coordinate}
+     */
+    record Matching(String pattern, String description) implements ArgumentShape {
+        public Matching {
+            Pattern.compile(pattern);
+        }
+    }
+
     /** Exactly this word, as in {@code "a" to "b"}. */
     record Word(String word) implements ArgumentShape {
     }
@@ -80,7 +96,19 @@ public sealed interface ArgumentShape {
 
     /** {@code type}'s shape: Brigadier's own types as they are, a {@link PortableArgument}'s own, or {@link Loose}. */
     static ArgumentShape of(ArgumentType<?> type) {
-        if (type instanceof PortableArgument portable) {
+        return of(type, unknown -> null);
+    }
+
+    /**
+     * {@code type}'s shape, as {@link #of(ArgumentType)} gives it, unless {@code shapes} gives one:
+     * how a host describes argument types it cannot make {@link PortableArgument}s, such as another
+     * library's.
+     */
+    static ArgumentShape of(ArgumentType<?> type, Function<ArgumentType<?>, @Nullable ArgumentShape> shapes) {
+        ArgumentShape given = shapes.apply(type);
+        if (given != null) {
+            return given;
+        } else if (type instanceof PortableArgument portable) {
             return portable.shape();
         } else if (type instanceof BoolArgumentType) {
             return new Bool();

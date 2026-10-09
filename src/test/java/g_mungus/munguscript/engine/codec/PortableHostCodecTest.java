@@ -117,6 +117,39 @@ class PortableHostCodecTest {
         assertEquals("\"two words\"", parse(loose, "\"two words\" rest"));
     }
 
+    /** Minecraft's block coordinates, as a host would describe them: three of {@code 5}, {@code ~}, {@code ~-2} or {@code ^1}. */
+    private static final ArgumentShape BLOCK_POS;
+
+    static {
+        ArgumentShape coordinate = new ArgumentShape.Matching("[~^]|[~^]?-?\\d+", "a coordinate");
+        BLOCK_POS = new ArgumentShape.Sequence(List.of(coordinate, coordinate, coordinate));
+    }
+
+    @Test
+    void aMatchingPartReadsOneTokenThatFitsItsPattern() throws Exception {
+        ArgumentType<?> pos = BLOCK_POS.argumentType(List.of());
+        assertEquals("0 64 ~-3", parse(pos, "0 64 ~-3"));
+        StringReader reader = new StringReader("~ ~1 ^ set_redstone 0");
+        pos.parse(reader);
+        assertEquals(" set_redstone 0", reader.getRemaining());
+        assertEquals("~ ~1 ^", parse(pos, "~ ~1 ^)"));
+        assertEquals("Expected a coordinate at position 2: 0 <--[HERE]",
+                assertThrows(CommandSyntaxException.class, () -> parse(pos, "0 x 0")).getMessage());
+        assertEquals("Expected a coordinate at position 4: 0 64<--[HERE]",
+                assertThrows(CommandSyntaxException.class, () -> parse(pos, "0 64")).getMessage());
+    }
+
+    @Test
+    void aHostGivesTheShapesOfTypesItCannotChange() throws Exception {
+        PortableHostCodec codec = new PortableHostCodec(type -> type instanceof Opaque ? BLOCK_POS : null);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        codec.writeArgumentType(new DataOutputStream(bytes), new Opaque());
+        ArgumentType<?> read = codec.readArgumentType(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray())));
+        // Without the host's shape it would be read loosely, and take only the 0.
+        assertEquals("0 0 0", parse(read, "0 0 0"));
+        assertThrows(CommandSyntaxException.class, () -> parse(read, "0"));
+    }
+
     @Test
     void anApplicabilityComesBackAsItsText() throws IOException {
         Applicability blocks = new Applicability() {

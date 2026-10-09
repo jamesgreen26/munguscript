@@ -1,11 +1,13 @@
 package g_mungus.munguscript.runner;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.MungusScript;
 import g_mungus.munguscript.engine.ScriptEngine;
 import g_mungus.munguscript.engine.ScriptHost;
+import g_mungus.munguscript.engine.codec.ArgumentShape;
 import g_mungus.munguscript.engine.codec.ScriptLanguageFile;
 import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.engine.preprocess.CommandPreProcessor;
@@ -85,7 +87,16 @@ public final class ScriptRunner<S> {
      * without the host's code, such as an editor.
      */
     public void writeLanguage(DataOutput out) throws IOException {
-        new ScriptLanguageFile().write(engine, grafted, host.defaultNamespace(), out);
+        writeLanguage(out, type -> null);
+    }
+
+    /**
+     * As {@link #writeLanguage(DataOutput)}, with the shapes of argument types the host cannot make
+     * {@link g_mungus.munguscript.engine.codec.PortableArgument}s, such as another library's.
+     */
+    public void writeLanguage(DataOutput out, Function<ArgumentType<?>, @Nullable ArgumentShape> shapes)
+            throws IOException {
+        new ScriptLanguageFile(shapes).write(engine, grafted, host.defaultNamespace(), out);
     }
 
     /** Runs a script given as text, one command per line. */

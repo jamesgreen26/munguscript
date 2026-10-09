@@ -6,7 +6,6 @@ import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
-import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 
@@ -22,8 +21,6 @@ import java.util.concurrent.CompletableFuture;
 final class ShapedArgument implements ArgumentType<String> {
     private static final DynamicCommandExceptionType EXPECTED =
             new DynamicCommandExceptionType(what -> new LiteralMessage("Expected " + what));
-    private static final SimpleCommandExceptionType EXPECTED_SPACE =
-            new SimpleCommandExceptionType(new LiteralMessage("Expected a space"));
 
     private final ArgumentShape shape;
     private final List<String> examples;
@@ -51,7 +48,15 @@ final class ShapedArgument implements ArgumentType<String> {
                 reader.skip();
             }
             if (reader.getCursor() == start) {
-                throw EXPECTED.createWithContext(reader, "a value");
+                throw EXPECTED.createWithContext(reader, describe(shape));
+            }
+        } else if (shape instanceof ArgumentShape.Matching matching) {
+            while (reader.canRead() && reader.peek() != ' ' && reader.peek() != ')') {
+                reader.skip();
+            }
+            if (!reader.getString().substring(start, reader.getCursor()).matches(matching.pattern())) {
+                reader.setCursor(start);
+                throw EXPECTED.createWithContext(reader, matching.description());
             }
         } else if (shape instanceof ArgumentShape.Word word) {
             if (!reader.readUnquotedString().equals(word.word())) {
@@ -71,7 +76,7 @@ final class ShapedArgument implements ArgumentType<String> {
             for (int i = 0; i < sequence.parts().size(); i++) {
                 if (i > 0) {
                     if (!reader.canRead() || reader.peek() != ' ') {
-                        throw EXPECTED_SPACE.createWithContext(reader);
+                        throw EXPECTED.createWithContext(reader, describe(sequence.parts().get(i)));
                     }
                     reader.skip();
                 }
@@ -83,6 +88,28 @@ final class ShapedArgument implements ArgumentType<String> {
             // Brigadier's own types.
             shape.argumentType(List.of()).parse(reader);
         }
+    }
+
+    /** What a shape is, for saying it was expected: {@code a coordinate}, {@code 'to'}. */
+    static String describe(ArgumentShape shape) {
+        if (shape instanceof ArgumentShape.Matching matching) {
+            return matching.description();
+        } else if (shape instanceof ArgumentShape.Word word) {
+            return "'" + word.word() + "'";
+        } else if (shape instanceof ArgumentShape.OneOf oneOf) {
+            return "one of " + String.join(", ", oneOf.words());
+        } else if (shape instanceof ArgumentShape.Sequence sequence) {
+            return describe(sequence.parts().get(0));
+        } else if (shape instanceof ArgumentShape.Bool) {
+            return "true or false";
+        } else if (shape instanceof ArgumentShape.Text || shape instanceof ArgumentShape.Loose) {
+            return "text";
+        } else if (shape instanceof ArgumentShape.IntRange || shape instanceof ArgumentShape.LongRange) {
+            return "a whole number";
+        } else if (shape instanceof ArgumentShape.FloatRange || shape instanceof ArgumentShape.DoubleRange) {
+            return "a number";
+        }
+        return "a value";
     }
 
     @Override
