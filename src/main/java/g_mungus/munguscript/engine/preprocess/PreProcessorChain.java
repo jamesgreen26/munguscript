@@ -73,5 +73,10 @@ final class PreProcessorChain implements CommandPreProcessor {
             steps.forEach(step -> tokens.addAll(step.tokens()));
             return tokens;
         }
+
+        @Override
+        public Prepared at(int line) {
+            return new ChainPrepared(steps.stream().map(step -> step.at(line)).toList());
+        }
     }
 }

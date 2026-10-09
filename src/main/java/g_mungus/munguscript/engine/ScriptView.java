@@ -110,8 +110,10 @@ public interface ScriptView<S> {
     ExpressionProbe probe(S source);
 
     /**
-     * The engine's own pre-processor for alias definitions ({@code #def name = expression}) at the
-     * top of a script. Usually first in a {@link CommandPreProcessor#chain}.
+     * The engine's own pre-processor for alias definitions ({@code #def name = expression}) and
+     * {@code #} comments, on any line of a script. A command uses only the aliases defined above it:
+     * ask its line's with {@link CommandPreProcessor.Prepared#at}. Usually first in a
+     * {@link CommandPreProcessor#chain}.
      */
     CommandPreProcessor aliases();
 }

@@ -46,5 +46,15 @@ public interface CommandPreProcessor {
 
         /** The tokens this pre-processor will rewrite, offered as suggestions and coloured by the editor. */
         Collection<PreProcessorToken> tokens();
+
+        /**
+         * This pre-processing as it stands at script line {@code line}: what a command there may
+         * use. Aliases are defined line by line, so a command sees only those defined above it.
+         * One with nothing that changes down the script is the same everywhere, and returns itself.
+         * The lines it used up and its problems are the whole script's, wherever it is asked from.
+         */
+        default Prepared at(int line) {
+            return this;
+        }
     }
 }

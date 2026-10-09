@@ -126,7 +126,7 @@ final class Harness {
                 continue;
             }
             String command = lines.get(i).strip();
-            PreProcessed processed = prepared.process(command, context);
+            PreProcessed processed = prepared.at(i).process(command, context);
             if (!processed.diagnostics().isEmpty()) {
                 return new Outcome(results, null, i, processed.diagnostics());
             }

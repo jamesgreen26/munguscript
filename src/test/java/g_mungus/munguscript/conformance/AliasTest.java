@@ -256,15 +256,54 @@ class AliasTest {
     }
 
     @EngineTest
-    void aDefinitionAfterTheFirstCommandIsAProblemAndNothingRuns(Harness h) {
-        List<PreProcessDiagnostic> diagnostics = h.diagnostics("""
+    void anyHashLineIsAComment(Harness h) {
+        CommandPreProcessor.Prepared prepared = h.prepare("""
+                #note
+                log "x"
+                #another
+                """);
+        assertEquals(Set.of(0, 2), prepared.consumedLines());
+    }
+
+    @EngineTest
+    void definitionsMayStandOnAnyLine(Harness h) {
+        h.world.level = 4;
+        h.run("""
+                log "x"
                 #def lvl = level
+                set_level value_of(lvl)
+                """);
+        h.assertCalls(call("log", "x"), call("set_level", 4));
+    }
+
+    @EngineTest
+    void aCommandUsesOnlyTheAliasesDefinedAboveIt(Harness h) {
+        h.world.level = 4;
+        // Above its definition, the name is only a word: here, no getter.
+        assertEquals("'later' is not a known value in value_of(later)", h.failure("""
+                set_level value_of(later)
+                #def later = level
+                """).reason());
+        CommandPreProcessor.Prepared prepared = h.prepare("""
                 log "x"
                 #def later = level
+                log "y"
                 """);
-        assertEquals(List.of(PreProcessDiagnostic.atLine(2, "Aliases must be defined before the first command")),
-                diagnostics);
-        h.assertCalls();
+        assertEquals(Set.of(1), prepared.consumedLines());
+        assertTrue(prepared.at(0).tokens().isEmpty());
+        assertEquals(List.of("later"), prepared.at(2).tokens().stream().map(PreProcessorToken::text).toList());
+    }
+
+    @EngineTest
+    void aRedefinitionHoldsFromItsLineDown(Harness h) {
+        h.world.level = 4;
+        h.run("""
+                #def n = 1
+                set_level value_of(n)
+                #def n = 2
+                set_level value_of(n)
+                """);
+        h.assertCalls(call("set_level", 1), call("set_level", 2));
     }
 
     @EngineTest

@@ -15,17 +15,20 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Aliases: {@code #def name = expression} lines at the top of a script. An alias is a text macro:
+ * Aliases: {@code #def name = expression} lines in a script. An alias is a text macro:
  * wherever an expression starts, its name is replaced with its expression, which runs again each
  * time. A failure inside the expansion points at the alias name, since the whole name maps to the
  * whole expansion.
@@ -36,15 +39,13 @@ import java.util.regex.Pattern;
  * where an expression starts, as {@code literal_of(...)} around the literal; an argument written
  * like its name is still that argument.
  *
- * <p>Comments ({@code #} lines) may stand on any line, and are skipped. Definitions stand in the
- * block at the top, among comments and blank lines, which ends at the first command: one after it
- * is a problem, since the commands above it could not have used it. A later definition of a name
- * replaces the earlier one.
+ * <p>Comments ({@code #} lines) and definitions may stand on any line, and are not run. A command
+ * may use only the aliases defined above it ({@link Prepared#at}), and a definition only those
+ * above it. A later definition of a name replaces the earlier one for the lines below it.
  */
 public final class AliasPreProcessor<S> implements CommandPreProcessor {
     private static final String DEFINE = "#def";
     private static final String COMMENT = "#";
-    private static final String AFTER_COMMANDS = "Aliases must be defined before the first command";
     private static final Pattern DECLARATION = Pattern.compile("([A-Za-z_][A-Za-z0-9_]*)\\s*=(.*)");
     private static final Pattern NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
@@ -61,29 +62,23 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
         Map<String, Alias> aliases = new LinkedHashMap<>();
         Set<Integer> consumed = new LinkedHashSet<>();
         List<PreProcessDiagnostic> diagnostics = new ArrayList<>();
-        boolean commandsStarted = false;
+        // The aliases as they stand after each line that defines one, for what the lines below may use.
+        NavigableMap<Integer, Map<String, Alias>> scopes = new TreeMap<>();
         for (int i = 0; i < scriptLines.size(); i++) {
             String line = scriptLines.get(i).strip();
-            if (line.isEmpty()) {
-                continue;
-            }
             if (!line.startsWith(COMMENT)) {
-                commandsStarted = true;
                 continue;
             }
             consumed.add(i);
-            if (!isDefinition(line)) {
-                continue;
-            }
-            int lineNumber = i;
-            if (commandsStarted) {
-                diagnostics.add(PreProcessDiagnostic.atLine(lineNumber, AFTER_COMMANDS));
-            } else {
+            if (isDefinition(line)) {
+                int lineNumber = i;
                 define(line.substring(DEFINE.length()).strip(), aliases)
-                        .ifPresent(problem -> diagnostics.add(PreProcessDiagnostic.atLine(lineNumber, problem)));
+                        .ifPresentOrElse(problem -> diagnostics.add(PreProcessDiagnostic.atLine(lineNumber, problem)),
+                                () -> scopes.put(lineNumber, Map.copyOf(aliases)));
             }
         }
-        return new AliasesPrepared(Map.copyOf(aliases), Set.copyOf(consumed), List.copyOf(diagnostics));
+        return new AliasesPrepared(Map.copyOf(aliases), Set.copyOf(consumed), List.copyOf(diagnostics),
+                Collections.unmodifiableNavigableMap(scopes));
     }
 
     private static boolean isDefinition(String line) {
@@ -170,8 +165,21 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
     private record Alias(String name, String body, String expansion, @Nullable TypeKey type) {
     }
 
+    /**
+     * @param aliases every alias the script defines, as they stand at its end, for a command asked
+     *                about with no line: a lone one, or one of the script's that is not placed
+     * @param scopes  the aliases as they stand after each line that defines one
+     */
     private record AliasesPrepared(Map<String, Alias> aliases, Set<Integer> consumedLines,
-                                   List<PreProcessDiagnostic> diagnostics) implements Prepared {
+                                   List<PreProcessDiagnostic> diagnostics,
+                                   NavigableMap<Integer, Map<String, Alias>> scopes) implements Prepared {
+
+        /** Only the aliases defined above {@code line}. */
+        @Override
+        public Prepared at(int line) {
+            Map.Entry<Integer, Map<String, Alias>> above = scopes.lowerEntry(line);
+            return new AliasesPrepared(above == null ? Map.of() : above.getValue(), consumedLines, diagnostics, scopes);
+        }
 
         @Override
         public PreProcessed process(String command, PreProcessContext context) {

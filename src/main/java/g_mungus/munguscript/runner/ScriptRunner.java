@@ -124,7 +124,8 @@ public final class ScriptRunner<S> {
                 continue;
             }
             String command = lines.get(i).strip();
-            PreProcessed processed = prepared.process(command, context);
+            // Only the aliases defined above it.
+            PreProcessed processed = prepared.at(i).process(command, context);
             if (!processed.diagnostics().isEmpty()) {
                 int line = i;
                 return new ScriptResult(ran, processed.diagnostics().stream()
