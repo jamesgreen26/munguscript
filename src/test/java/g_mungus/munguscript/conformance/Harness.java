@@ -52,6 +52,8 @@ final class Harness {
     final CommandNode<Source> grafted;
     String block = "stone";
     Map<String, Point> addresses = Map.of();
+    /** The values the script's variables stand at, as a host would pass them; none means their declared literals. */
+    Map<String, String> variables = Map.of();
 
     Harness(EngineProvider provider) {
         this(provider, TestNodes::register);
@@ -85,7 +87,7 @@ final class Harness {
     }
 
     PreProcessContext preProcessContext() {
-        return new PreProcessContext(engine.probe(source()), source().place());
+        return new PreProcessContext(engine.probe(source()), source().place(), variables);
     }
 
     CommandPreProcessor preProcessors() {

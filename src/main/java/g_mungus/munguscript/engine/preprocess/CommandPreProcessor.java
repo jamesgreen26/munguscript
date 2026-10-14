@@ -2,6 +2,7 @@ package g_mungus.munguscript.engine.preprocess;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -46,6 +47,14 @@ public interface CommandPreProcessor {
 
         /** The tokens this pre-processor will rewrite, offered as suggestions and coloured by the editor. */
         Collection<PreProcessorToken> tokens();
+
+        /**
+         * The {@link ScriptVariable variables} the script declares, by name: those above the line
+         * this was taken {@link #at}, or the whole script's if it was not.
+         */
+        default Map<String, ScriptVariable> variables() {
+            return Map.of();
+        }
 
         /**
          * This pre-processing as it stands at script line {@code line}: what a command there may

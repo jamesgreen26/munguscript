@@ -123,6 +123,19 @@ public final class LiteralOfArgument implements ArgumentType<Object> {
     }
 
     /**
+     * {@code text} written as the literal it reads as: a number or boolean as it stands, anything
+     * else as a quoted string. Quoting keeps what the text holds, spaces and brackets included,
+     * inside the literal.
+     */
+    public static String write(String text) {
+        Optional<TypeKey> type = literalType(text);
+        if (type.isPresent() && !type.get().equals(BuiltInTypes.STRING.key())) {
+            return text;
+        }
+        return '"' + text.replace("\\", "\\\\").replace("\"", "\\\"") + '"';
+    }
+
+    /**
      * What is wrong with the {@code literal_of(} at {@code start}, if none of the primitive types
      * read it: the same reason {@link #parse} fails with. Null if there is none there.
      */

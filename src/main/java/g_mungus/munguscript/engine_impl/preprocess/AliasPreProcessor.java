@@ -7,6 +7,7 @@ import g_mungus.munguscript.engine.preprocess.PreProcessed;
 import g_mungus.munguscript.engine.preprocess.PreProcessorToken;
 import g_mungus.munguscript.engine.preprocess.Rewriter;
 import g_mungus.munguscript.engine.preprocess.Rewritten;
+import g_mungus.munguscript.engine.preprocess.ScriptVariable;
 import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
@@ -39,12 +40,26 @@ import java.util.regex.Pattern;
  * where an expression starts, as {@code literal_of(...)} around the literal; an argument written
  * like its name is still that argument.
  *
+ * <p>A variable, {@code #var name = literal}, is a literal alias whose value the host can change
+ * between commands: it is written into each command at its current value, from the
+ * {@link PreProcessContext#variables context}, as a literal this writes itself, of whatever type
+ * the value reads as. With no value there, it stands at its declared literal. An
+ * alias may use one, and then carries the variable's value as it stands when the command is
+ * pre-processed. A variable may not share a name with another variable or an alias: whichever is
+ * declared lower down is refused.
+ *
  * <p>Comments ({@code #} lines) and definitions may stand on any line, and are not run. A command
  * may use only the aliases defined above it ({@link Prepared#at}), and a definition only those
  * above it. A later definition of a name replaces the earlier one for the lines below it.
  */
 public final class AliasPreProcessor<S> implements CommandPreProcessor {
     private static final String DEFINE = "#def";
+    private static final String DECLARE = "#var";
+    /**
+     * Brackets a variable's name in an expansion, to be replaced by its value when a command is
+     * pre-processed. No script text can hold it, so it marks nothing else.
+     */
+    private static final char VARIABLE_MARK = '\u0001';
     private static final String COMMENT = "#";
     private static final Pattern DECLARATION = Pattern.compile("([A-Za-z_][A-Za-z0-9_]*)\\s*=(.*)");
     private static final Pattern NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
@@ -70,9 +85,11 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
                 continue;
             }
             consumed.add(i);
-            if (isDefinition(line)) {
+            boolean variable = isDefinition(line, DECLARE);
+            if (variable || isDefinition(line, DEFINE)) {
                 int lineNumber = i;
-                define(line.substring(DEFINE.length()).strip(), aliases)
+                String declaration = line.substring((variable ? DECLARE : DEFINE).length()).strip();
+                (variable ? declare(declaration, aliases) : define(declaration, aliases))
                         .ifPresentOrElse(problem -> diagnostics.add(PreProcessDiagnostic.atLine(lineNumber, problem)),
                                 () -> scopes.put(lineNumber, Map.copyOf(aliases)));
             }
@@ -81,8 +98,39 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
                 Collections.unmodifiableNavigableMap(scopes));
     }
 
-    private static boolean isDefinition(String line) {
-        return line.startsWith(DEFINE) && (line.length() == DEFINE.length() || Character.isWhitespace(line.charAt(DEFINE.length())));
+    private static boolean isDefinition(String line, String keyword) {
+        return line.startsWith(keyword) && (line.length() == keyword.length() || Character.isWhitespace(line.charAt(keyword.length())));
+    }
+
+    /** Adds the variable a declaration declares, or says what is wrong with it. */
+    private Optional<String> declare(String declaration, Map<String, Alias> aliases) {
+        Matcher matcher = DECLARATION.matcher(declaration);
+        if (!matcher.matches()) {
+            return Optional.of("Invalid variable declaration");
+        }
+        String name = matcher.group(1);
+        String body = matcher.group(2).strip();
+        Optional<String> conflict = conflict(name).map(problem -> problem.replaceFirst("^Alias", "Variable"));
+        if (conflict.isPresent()) {
+            return conflict;
+        }
+        Alias existing = aliases.get(name);
+        if (existing != null) {
+            return Optional.of(existing.variable()
+                    ? "Variable '" + name + "' is already declared"
+                    : "Variable name '" + name + "' conflicts with an alias");
+        }
+        if (body.isEmpty()) {
+            return Optional.of("Variable value cannot be empty");
+        }
+        Optional<TypeKey> literal = aliases.containsKey(body) || tree.isGetter(body)
+                ? Optional.empty() : LiteralOfArgument.literalType(body);
+        if (literal.isEmpty()) {
+            return Optional.of("Variable must be a literal: a number, true or false, or a string");
+        }
+        String expansion = LiteralOfArgument.OPEN + VARIABLE_MARK + name + VARIABLE_MARK + ")";
+        aliases.put(name, new Alias(name, body, expansion, literal.get(), true));
+        return Optional.empty();
     }
 
     /** Adds the alias a declaration defines, or says what is wrong with it. */
@@ -97,6 +145,10 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
         if (conflict.isPresent()) {
             return conflict;
         }
+        Alias existing = aliases.get(name);
+        if (existing != null && existing.variable()) {
+            return Optional.of("Alias name '" + name + "' conflicts with a variable");
+        }
         if (body.isEmpty()) {
             return Optional.of("Alias expression cannot be empty");
         }
@@ -104,7 +156,7 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
         Optional<TypeKey> literal = aliases.containsKey(body) || tree.isGetter(body)
                 ? Optional.empty() : LiteralOfArgument.literalType(body);
         if (literal.isPresent()) {
-            aliases.put(name, new Alias(name, body, LiteralOfArgument.OPEN + body + ")", literal.get()));
+            aliases.put(name, new Alias(name, body, LiteralOfArgument.OPEN + body + ")", literal.get(), false));
             return Optional.empty();
         }
         Matcher first = NAME.matcher(body);
@@ -116,8 +168,11 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
         // Earlier aliases are expanded now, so each expansion is complete on its own. That is also
         // what lets a definition replace an earlier one of the same name, even building on it,
         // while the definitions between them keep the one they were made with.
-        String expansion = expand(body, ExpressionStarts.inExpression(body), aliases).text();
-        aliases.put(name, new Alias(name, body, expansion, expressions.typeOf(expansion, null).orElse(null)));
+        // Variables stay marked in the expansion, to take their value when a command uses the alias;
+        // the type is read with each at its declared literal.
+        String expansion = expand(body, ExpressionStarts.inExpression(body), aliases, null).text();
+        TypeKey type = expressions.typeOf(withValues(expansion, Map.of(), aliases), null).orElse(null);
+        aliases.put(name, new Alias(name, body, expansion, type, false));
         return Optional.empty();
     }
 
@@ -134,8 +189,12 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
         return Optional.empty();
     }
 
-    /** Replaces each alias name standing at one of {@code starts} with its expansion. */
-    private static Rewritten expand(String text, List<Integer> starts, Map<String, Alias> aliases) {
+    /**
+     * Replaces each alias name standing at one of {@code starts} with its expansion: with the
+     * variables in it at {@code values}, or left marked if that is null.
+     */
+    private static Rewritten expand(String text, List<Integer> starts, Map<String, Alias> aliases,
+                                    @Nullable Map<String, String> values) {
         Rewriter rewriter = new Rewriter(text);
         int kept = 0;
         for (int start : starts) {
@@ -145,11 +204,32 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
             }
             Alias alias = aliases.get(name.group());
             if (alias != null) {
-                rewriter.keep(kept, start).replace(start, name.end(), alias.expansion());
+                String expansion = values == null ? alias.expansion() : withValues(alias.expansion(), values, aliases);
+                rewriter.keep(kept, start).replace(start, name.end(), expansion);
                 kept = name.end();
             }
         }
         return rewriter.keep(kept, text.length()).build();
+    }
+
+    /**
+     * {@code expansion} with each variable marked in it at its value, or its declared literal. A
+     * value is only ever written as a literal, so it cannot reach past it.
+     */
+    private static String withValues(String expansion, Map<String, String> values, Map<String, Alias> aliases) {
+        StringBuilder out = new StringBuilder();
+        int from = 0;
+        int open;
+        while ((open = expansion.indexOf(VARIABLE_MARK, from)) >= 0) {
+            int close = expansion.indexOf(VARIABLE_MARK, open + 1);
+            String name = expansion.substring(open + 1, close);
+            Alias variable = aliases.get(name);
+            String value = values.get(name);
+            String literal = variable == null ? "" : value == null ? variable.body() : LiteralOfArgument.write(value);
+            out.append(expansion, from, open).append(literal);
+            from = close + 1;
+        }
+        return out.append(expansion, from, expansion.length()).toString();
     }
 
     private static boolean endsWord(String text, int end) {
@@ -161,8 +241,13 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
      * @param expansion what replaces the name: the expression with earlier aliases expanded, or
      *                  {@code literal_of(...)} around the literal
      * @param type      what it gives, if it reads in full
+     * @param variable  whether it is a {@code #var}, whose expansion is its marked name
      */
-    private record Alias(String name, String body, String expansion, @Nullable TypeKey type) {
+    private record Alias(String name, String body, String expansion, @Nullable TypeKey type, boolean variable) {
+
+        ScriptVariable asVariable() {
+            return new ScriptVariable(name, type, body);
+        }
     }
 
     /**
@@ -186,7 +271,16 @@ public final class AliasPreProcessor<S> implements CommandPreProcessor {
             if (aliases.isEmpty()) {
                 return PreProcessed.unchanged(command);
             }
-            return PreProcessed.of(expand(command, ExpressionStarts.inCommand(command), aliases));
+            return PreProcessed.of(expand(command, ExpressionStarts.inCommand(command), aliases, context.variables()));
+        }
+
+        @Override
+        public Map<String, ScriptVariable> variables() {
+            Map<String, ScriptVariable> variables = new LinkedHashMap<>();
+            aliases.values().stream()
+                    .filter(Alias::variable)
+                    .forEach(alias -> variables.put(alias.name(), alias.asVariable()));
+            return variables;
         }
 
         @Override

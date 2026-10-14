@@ -9,8 +9,10 @@ import g_mungus.munguscript.engine.preprocess.SourceMap;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -72,6 +74,13 @@ final class PreProcessorChain implements CommandPreProcessor {
             List<PreProcessorToken> tokens = new ArrayList<>();
             steps.forEach(step -> tokens.addAll(step.tokens()));
             return tokens;
+        }
+
+        @Override
+        public Map<String, ScriptVariable> variables() {
+            Map<String, ScriptVariable> variables = new LinkedHashMap<>();
+            steps.forEach(step -> variables.putAll(step.variables()));
+            return variables;
         }
 
         @Override
