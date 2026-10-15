@@ -146,4 +146,18 @@ class VariableTest {
                 """);
         h.assertCalls(call("log", "a\") log b (\"c\" \\"));
     }
+
+    @EngineTest
+    void aComparisonOffersEachAliasAndVariableOnce(Harness h) {
+        CommandPreProcessor.Prepared prepared = h.prepare("""
+                #def lv = level
+                #var vv = 3
+                set_level 1
+                """).at(2);
+        for (String typed : List.of("if level == value_of(", "if level > value_of(")) {
+            List<String> suggested = h.suggest(typed, prepared);
+            assertEquals(1, suggested.stream().filter("lv"::equals).count(), typed + " -> " + suggested);
+            assertEquals(1, suggested.stream().filter("vv"::equals).count(), typed + " -> " + suggested);
+        }
+    }
 }

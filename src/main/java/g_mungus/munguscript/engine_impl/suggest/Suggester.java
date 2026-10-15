@@ -29,9 +29,11 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -113,7 +115,13 @@ public final class Suggester<S> {
         }
         int start = suggestions.stream().mapToInt(suggestion -> suggestion.getRange().getStart()).min().orElseThrow();
         int end = suggestions.stream().mapToInt(suggestion -> suggestion.getRange().getEnd()).max().orElseThrow();
-        List<Suggestion> unique = new ArrayList<>(new LinkedHashSet<>(suggestions));
+        // Two ways to the same word, such as an int and a double slot both offering an alias, are
+        // one suggestion. A tooltip does not tell them apart: a LiteralMessage has no equality.
+        Map<String, Suggestion> byWord = new LinkedHashMap<>();
+        for (Suggestion suggestion : suggestions) {
+            byWord.putIfAbsent(suggestion.getRange() + " " + suggestion.getText(), suggestion);
+        }
+        List<Suggestion> unique = new ArrayList<>(byWord.values());
         unique.sort((a, b) -> a.getText().compareToIgnoreCase(b.getText()));
         return new Suggestions(StringRange.between(start, end), unique);
     }
