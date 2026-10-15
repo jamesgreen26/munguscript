@@ -57,7 +57,7 @@ public final class OverloadedArgument implements ArgumentType<ParsedOverload> {
         for (int i = 0; i < variants.size(); i++) {
             StringReader attempt = new StringReader(reader);
             try {
-                Object parsed = variants.get(i).literal().parse(attempt);
+                Object parsed = CommandText.parseLiteral(variants.get(i).literal(), attempt);
                 if (attempt.getCursor() > furthest) {
                     furthest = attempt.getCursor();
                     longest.clear();

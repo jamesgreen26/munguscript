@@ -92,7 +92,7 @@ public final class LiteralOfArgument implements ArgumentType<Object> {
             if (inner.isEmpty()) {
                 throw NOT_A_LITERAL.createWithContext(reader, inner);
             }
-            value = literal.parse(within);
+            value = CommandText.parseLiteral(literal, within);
         } catch (CommandSyntaxException e) {
             throw NOT_A_LITERAL.createWithContext(reader, inner);
         }
@@ -111,7 +111,7 @@ public final class LiteralOfArgument implements ArgumentType<Object> {
         for (ScriptType<?> type : PRIMITIVES) {
             StringReader reader = new StringReader(text);
             try {
-                type.requireLiteral().argumentType(BuildEnvironment.EMPTY).parse(reader);
+                CommandText.parseLiteral(type.requireLiteral().argumentType(BuildEnvironment.EMPTY), reader);
             } catch (CommandSyntaxException e) {
                 continue;
             }

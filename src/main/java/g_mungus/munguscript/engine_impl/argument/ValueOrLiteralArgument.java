@@ -48,7 +48,7 @@ public final class ValueOrLiteralArgument implements ArgumentType<Object> {
     public Object parse(StringReader reader) throws CommandSyntaxException {
         Optional<Object> form = readForm(reader);
         if (form.isEmpty()) {
-            return literal.parse(reader);
+            return CommandText.parseLiteral(literal, reader);
         }
         if (form.get() instanceof ValueOf valueOf) {
             lookup.view().check(this, valueOf, List.of(target));
