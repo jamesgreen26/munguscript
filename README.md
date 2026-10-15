@@ -11,7 +11,7 @@ it with mappers, and hands it to an executor:
 #def greeting = "hello"
 write_file "hello"
 write_file value_of(read_file + " world")
-if text lines > 0 write_file value_of(text <+ "first line\\n")
+if text lines > 0 write_file value_of(text <+ "first line\n")
 write_file value_of(greeting + " world")
 ```
 

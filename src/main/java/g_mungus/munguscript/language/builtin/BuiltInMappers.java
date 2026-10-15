@@ -3,12 +3,12 @@ package g_mungus.munguscript.language.builtin;
 import g_mungus.munguscript.language.node.ScriptNode;
 import g_mungus.munguscript.language.node.ScriptNodes;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Pattern;
 
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.BOOLEAN;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.DOUBLE;
-import static g_mungus.munguscript.language.builtin.BuiltInTypes.ESCAPED_NEWLINE;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.INT;
 import static g_mungus.munguscript.language.builtin.BuiltInTypes.STRING;
 
@@ -19,8 +19,6 @@ import static g_mungus.munguscript.language.builtin.BuiltInTypes.STRING;
  * <p>A mapper the host registers with the same name and input type replaces the built-in one.
  */
 public final class BuiltInMappers {
-
-    private static final Pattern ESCAPED_NEWLINE_PATTERN = Pattern.compile(Pattern.quote(ESCAPED_NEWLINE));
 
     public static final List<ScriptNode> ALL = List.of(
             ScriptNodes.argumentMapper(">", INT, BOOLEAN, INT,
@@ -83,8 +81,9 @@ public final class BuiltInMappers {
     private BuiltInMappers() {
     }
 
+    /** A string's lines, split at its line breaks. */
     private static String[] splitLines(String text) {
-        return ESCAPED_NEWLINE_PATTERN.split(text, -1);
+        return text.split("\n", -1);
     }
 
     /** The line at a 1-based index, or an empty string if there is none. */
@@ -101,21 +100,13 @@ public final class BuiltInMappers {
         if (index < 0 || index >= lines.length) {
             return text;
         }
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            if (i == index) {
-                continue;
-            }
-            if (!result.isEmpty()) {
-                result.append(ESCAPED_NEWLINE);
-            }
-            result.append(lines[i]);
-        }
-        return result.toString();
+        List<String> kept = new ArrayList<>(Arrays.asList(lines));
+        kept.remove(index);
+        return String.join("\n", kept);
     }
 
     /** Every occurrence of the delimiter becomes a line break. */
     private static String split(String text, String delimiter) {
-        return delimiter.isEmpty() ? text : text.replace(delimiter, ESCAPED_NEWLINE);
+        return delimiter.isEmpty() ? text : text.replace(delimiter, "\n");
     }
 }

@@ -62,16 +62,18 @@ class BuiltInMappersTest {
 
     @EngineTest
     void stringsJoinAndSplitIntoLines(Harness h) {
-        h.world.message = "a\\nb\\nc";
+        h.world.message = "a\nb\nc";
         assertEquals(3, h.valueOf("message lines", INT));
         assertEquals("b", h.valueOf("message get_line 2", STRING));
         assertEquals("", h.valueOf("message get_line 9", STRING));
-        assertEquals("a\\nc", h.valueOf("message remove_line 2", STRING));
-        assertEquals("a\\nb\\nc", h.valueOf("message remove_line 0", STRING));
-        assertEquals("a\\nb\\nc!", h.valueOf("message + \"!\"", STRING));
-        assertEquals(">a\\nb\\nc", h.valueOf("message <+ \">\"", STRING));
+        assertEquals("a\nc", h.valueOf("message remove_line 2", STRING));
+        assertEquals("a\nb\nc", h.valueOf("message remove_line 0", STRING));
+        assertEquals("a\nb\nc!", h.valueOf("message + \"!\"", STRING));
+        assertEquals(">a\nb\nc", h.valueOf("message <+ \">\"", STRING));
+        h.world.message = "\nb\nc";
+        assertEquals("\nc", h.valueOf("message remove_line 2", STRING));
         h.world.message = "x,y";
-        assertEquals("x\\ny", h.valueOf("message split \",\"", STRING));
+        assertEquals("x\ny", h.valueOf("message split \",\"", STRING));
         assertEquals("x,y", h.valueOf("message split \"\"", STRING));
         assertEquals(true, h.valueOf("message == \"x,y\"", BOOLEAN));
         assertEquals(1, h.valueOf("message + \"\" lines", INT));

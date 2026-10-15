@@ -125,14 +125,15 @@ public final class LiteralOfArgument implements ArgumentType<Object> {
     /**
      * {@code text} written as the literal it reads as: a number or boolean as it stands, anything
      * else as a quoted string. Quoting keeps what the text holds, spaces and brackets included,
-     * inside the literal.
+     * inside the literal, with its line breaks written as {@code \n} so the command stays one line.
      */
     public static String write(String text) {
         Optional<TypeKey> type = literalType(text);
         if (type.isPresent() && !type.get().equals(BuiltInTypes.STRING.key())) {
             return text;
         }
-        return '"' + text.replace("\\", "\\\\").replace("\"", "\\\"") + '"';
+        return '"' + text.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n") + '"';
     }
 
     /**

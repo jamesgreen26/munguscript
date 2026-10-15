@@ -5,7 +5,6 @@ import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.StringRange;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import g_mungus.munguscript.language.builtin.BuiltInTypes;
 import org.jetbrains.annotations.Nullable;
 
 /** Reading command text the way Brigadier does: words end at spaces, and quoted strings are skipped whole. */
@@ -33,9 +32,9 @@ public final class CommandText {
 
     /**
      * What {@code literal} reads at the cursor, except that a quoted string of a quotable
-     * {@link StringArgumentType} may also hold {@code \n}, which Brigadier refuses as an escape. It is
-     * kept as the two characters {@link BuiltInTypes#ESCAPED_NEWLINE}, the line break every script
-     * string uses, so {@code "a\nb"} and {@code "a\\nb"} read alike.
+     * {@link StringArgumentType} may also hold {@code \n}, a line break, which Brigadier refuses as an
+     * escape. Script text never holds a real line break inside a command, so this is the only way to
+     * write one; {@link LiteralOfArgument#write} writes it back the same way.
      */
     public static Object parseLiteral(ArgumentType<?> literal, StringReader reader) throws CommandSyntaxException {
         if (literal instanceof StringArgumentType string && string.getType() == StringArgumentType.StringType.QUOTABLE_PHRASE
@@ -45,7 +44,7 @@ public final class CommandText {
         return literal.parse(reader);
     }
 
-    /** Brigadier's {@link StringReader#readQuotedString}, also taking {@code \n} as {@link BuiltInTypes#ESCAPED_NEWLINE}. */
+    /** Brigadier's {@link StringReader#readQuotedString}, also reading {@code \n} as a line break. */
     private static String readQuoted(StringReader reader) throws CommandSyntaxException {
         char quote = reader.read();
         StringBuilder result = new StringBuilder();
@@ -56,7 +55,7 @@ public final class CommandText {
                 if (c == quote || c == '\\') {
                     result.append(c);
                 } else if (c == 'n') {
-                    result.append(BuiltInTypes.ESCAPED_NEWLINE);
+                    result.append('\n');
                 } else {
                     reader.setCursor(reader.getCursor() - 1);
                     throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.readerInvalidEscape()

@@ -18,12 +18,6 @@ public final class BuiltInTypes {
 
     public static final String NAMESPACE = "script";
 
-    /**
-     * Lines in a {@link #STRING} are separated by the two characters {@code \n}, not a newline. The
-     * built-in line mappers split on it.
-     */
-    public static final String ESCAPED_NEWLINE = "\\n";
-
     /** Usable as a {@link #DOUBLE}. */
     public static final ScriptType<Integer> INT = ScriptType.writable(key("int"), Integer.class)
             .argument(IntegerArgumentType.integer())
