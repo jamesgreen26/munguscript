@@ -2,6 +2,7 @@ package g_mungus.munguscript.engine_impl.argument;
 
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import g_mungus.munguscript.language.type.TypeKey;
@@ -63,5 +64,13 @@ public final class ArgumentLookup {
          * @throws ValueOfException if it is usable as none of them, or does not read at all
          */
         TypeKey check(ArgumentType<?> argument, ValueOf valueOf, List<TypeKey> targets) throws ValueOfException;
+
+        /**
+         * Reads what a {@code command(...)} holds as a command, as written in {@code slot}.
+         *
+         * @throws CommandSyntaxException if it has an executor not meant for inside the slot's command executor,
+         *                                or does not read, in full, as one that runs
+         */
+        void checkCommand(ArgumentType<?> slot, WrappedCommand command) throws CommandSyntaxException;
     }
 }

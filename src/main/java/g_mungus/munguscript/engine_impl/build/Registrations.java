@@ -19,14 +19,16 @@ import java.util.Map;
  * Everything one build is made of, checked: the types, and the nodes with built-in and generated
  * mappers already merged in.
  *
- * @param nodes the host's nodes in registration order, then the built-in and generated ones it did
- *              not replace
+ * @param nodes     the host's nodes in registration order, then the built-in and generated ones it
+ *                  did not replace
+ * @param standards the built-in and generated nodes among {@code nodes}
  */
-public record Registrations(List<ScriptType<?>> types, List<ScriptNode> nodes) {
+public record Registrations(List<ScriptType<?>> types, List<ScriptNode> nodes, List<ScriptNode> standards) {
 
     public Registrations {
         types = List.copyOf(types);
         nodes = List.copyOf(nodes);
+        standards = List.copyOf(standards);
     }
 
     public List<ScriptGetter<?>> getters() {
@@ -61,6 +63,11 @@ public record Registrations(List<ScriptType<?>> types, List<ScriptNode> nodes) {
             // Every executor counts towards the variant numbers, restricted or not.
             int variant = node instanceof ScriptExecutor<?, ?>
                     ? executorVariants.merge(node.displayName(), 1, Integer::sum) - 1 : 0;
+            if (node instanceof ScriptExecutor<?, ?> executor && !executor.onlyInside().isEmpty()) {
+                restrictions.add(Restriction.executor(node.displayName(), variant, node.applicability(),
+                        executor.onlyInside()));
+                continue;
+            }
             if (node.applicability() == null) {
                 continue;
             }

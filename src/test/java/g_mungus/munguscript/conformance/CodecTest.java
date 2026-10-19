@@ -65,7 +65,7 @@ class CodecTest {
                 .decode(new DataInputStream(new ByteArrayInputStream(bytes)), TestHost.VIEW_ONLY, TYPES);
     }
 
-    private static ScriptView<TestHost.Source> roundTrip(Harness h) throws IOException {
+    static ScriptView<TestHost.Source> roundTrip(Harness h) throws IOException {
         TestHostCodec host = new TestHostCodec();
         return decode(h, encode(h, host), host);
     }

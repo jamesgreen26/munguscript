@@ -5,6 +5,7 @@ import com.mojang.brigadier.RedirectModifier;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
+import g_mungus.munguscript.engine_impl.argument.CommandSlotArgument;
 import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
@@ -17,7 +18,9 @@ import g_mungus.munguscript.engine_impl.tree.ScriptLiteralNode;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
 import g_mungus.munguscript.engine_impl.tree.TypeGraph;
 import g_mungus.munguscript.language.builtin.BuiltInTypes;
+import g_mungus.munguscript.language.node.CommandArgument;
 import g_mungus.munguscript.language.node.ScriptArgumentMapper;
+import g_mungus.munguscript.language.node.ScriptExecutor;
 import g_mungus.munguscript.language.node.ScriptGetter;
 import g_mungus.munguscript.language.node.ScriptNode;
 import g_mungus.munguscript.language.type.BuildEnvironment;
@@ -108,17 +111,28 @@ public final class TreeBuilder<S> {
         // root, so else can only follow a branch that has a condition, and the last branch of a
         // chain ends it.
         CommandNode<S> afterCondition = conditionChains.get(BOOLEAN);
+        checkNesting();
         for (ExecutorGroup group : registrations.executors()) {
-            OverloadedArgument argument = new OverloadedArgument(group.variants().stream()
-                    .map(executor -> slot(executor.argumentType(environment), executor.inputType().key()))
-                    .toList(), lookup, true);
-            Command<S> run = actions.executor(group);
-            script.addChild(executor(group, argument, run, null));
+            ArgumentType<?> argument;
+            String argumentName;
+            Command<S> run;
+            if (takesCommand(group)) {
+                argument = new CommandSlotArgument(lookup);
+                argumentName = CommandSlotArgument.NAME;
+                run = actions.commandExecutor(group);
+            } else {
+                argument = new OverloadedArgument(group.variants().stream()
+                        .map(executor -> slot(executor.argumentType(environment), executor.inputType().key()))
+                        .toList(), lookup, true);
+                argumentName = group.argumentName();
+                run = actions.executor(group);
+            }
+            script.addChild(executor(group.name(), argumentName, argument, run, null));
             // A boolean mapper of the same name wins after a condition, since Brigadier would
             // otherwise merge the two.
             if (afterCondition.getChild(group.name()) == null) {
                 CommandNode<S> elseNode = new ScriptLiteralNode<>(NodeNames.ELSE, null, script, actions.elseBranch(run));
-                afterCondition.addChild(executor(group, argument, run, elseNode));
+                afterCondition.addChild(executor(group.name(), argumentName, argument, run, elseNode));
             }
         }
         inheritMappers(valueChain, conditionChain);
@@ -158,14 +172,47 @@ public final class TreeBuilder<S> {
         }
     }
 
+    /**
+     * @throws IllegalStateException if an executor is only for inside an executor that takes no command
+     */
+    private void checkNesting() {
+        List<String> commandExecutors = registrations.executors().stream().filter(this::takesCommand)
+                .map(ExecutorGroup::name).toList();
+        for (ExecutorGroup group : registrations.executors()) {
+            for (ScriptExecutor<?, ?> executor : group.variants()) {
+                for (String other : executor.onlyInside()) {
+                    if (!commandExecutors.contains(other)) {
+                        throw new IllegalStateException("'" + group.name() + "' is only for inside '" + other
+                                + "', which is not an executor that takes a command(...)");
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether the executors of {@code group} take a whole command.
+     *
+     * @throws IllegalStateException if only some of them do
+     */
+    private boolean takesCommand(ExecutorGroup group) {
+        long commands = group.variants().stream()
+                .filter(executor -> executor.argumentType(environment) instanceof CommandArgument).count();
+        if (commands != 0 && commands != group.variants().size()) {
+            throw new IllegalStateException("'" + group.name() + "' takes a command, so no other executor may share"
+                    + " its name");
+        }
+        return commands != 0;
+    }
+
     /** {@code name <argument>}, where the argument runs the overload, followed by {@code else} if given. */
-    private CommandNode<S> executor(ExecutorGroup group, OverloadedArgument type, Command<S> run,
+    private CommandNode<S> executor(String name, String argumentName, ArgumentType<?> type, Command<S> run,
                                     @Nullable CommandNode<S> elseNode) {
-        CommandNode<S> argument = new ScriptArgumentNode<>(group.argumentName(), type, run, null, null);
+        CommandNode<S> argument = new ScriptArgumentNode<>(argumentName, type, run, null, null);
         if (elseNode != null) {
             argument.addChild(elseNode);
         }
-        CommandNode<S> literal = new ScriptLiteralNode<>(group.name(), null, null, null);
+        CommandNode<S> literal = new ScriptLiteralNode<>(name, null, null, null);
         literal.addChild(argument);
         return literal;
     }

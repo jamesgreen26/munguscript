@@ -31,6 +31,29 @@ public final class CommandText {
     }
 
     /**
+     * Where the parenthesis that closes one opened just before {@code innerStart} is, or -1 if it is
+     * not closed. Quoted strings inside may hold parentheses of their own.
+     */
+    public static int closingParenthesis(String text, int innerStart) {
+        int depth = 1;
+        int i = innerStart;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            if (isQuote(c)) {
+                i = skipQuoted(text, i);
+                continue;
+            }
+            if (c == '(') {
+                depth++;
+            } else if (c == ')' && --depth == 0) {
+                return i;
+            }
+            i++;
+        }
+        return -1;
+    }
+
+    /**
      * What {@code literal} reads at the cursor, except that a quoted string of a quotable
      * {@link StringArgumentType} may also hold {@code \n}, a line break, which Brigadier refuses as an
      * escape. Script text never holds a real line break inside a command, so this is the only way to

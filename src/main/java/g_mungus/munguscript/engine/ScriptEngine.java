@@ -1,5 +1,6 @@
 package g_mungus.munguscript.engine;
 
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.failure.ScriptFailure;
 import g_mungus.munguscript.engine.host.Restriction;
@@ -46,6 +47,14 @@ public interface ScriptEngine<S> extends ScriptView<S> {
 
     /** Evaluates what a script would write as {@code value_of(expression)} where {@code type} is wanted. */
     <T> T evaluate(String expression, ScriptType<T> type, S source);
+
+    /**
+     * Parses an already pre-processed command once, to be run live over and over. Call
+     * {@link LiveLine#refresh} before its first run.
+     *
+     * @throws CommandSyntaxException if it does not parse to a command that can run
+     */
+    LiveLine<S> compileLive(String command, S source, LivePolicy policy) throws CommandSyntaxException;
 
     /**
      * Describes a failure raised while running {@code executedCommand}, with ranges mapped back

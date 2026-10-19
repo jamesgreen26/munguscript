@@ -13,6 +13,7 @@ import g_mungus.munguscript.engine.ScriptViewHost;
 import g_mungus.munguscript.engine.argument.ArgumentDescription;
 import g_mungus.munguscript.engine.argument.ScriptArguments;
 import g_mungus.munguscript.engine.host.Restriction;
+import g_mungus.munguscript.language.node.Applicability;
 import g_mungus.munguscript.language.type.ScriptType;
 import g_mungus.munguscript.language.type.TypeKey;
 import org.jetbrains.annotations.Nullable;
@@ -26,9 +27,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Encodes the engine's part of a command tree on a server, and decodes it on a client into a
@@ -57,7 +60,7 @@ import java.util.Optional;
  */
 public final class ScriptTreeCodec {
     /** The format {@link #encode} writes and {@link #decode} reads. */
-    public static final int FORMAT_VERSION = 3;
+    public static final int FORMAT_VERSION = 5;
 
     private static final byte LITERAL = 0;
     private static final byte ARGUMENT = 1;
@@ -71,6 +74,7 @@ public final class ScriptTreeCodec {
     private static final byte VALUE_OR_LITERAL = 1;
     private static final byte OVERLOADED = 2;
     private static final byte LITERAL_OF = 3;
+    private static final byte COMMAND = 4;
 
     private final ScriptArguments arguments;
     private final HostCodec host;
@@ -214,6 +218,8 @@ public final class ScriptTreeCodec {
             out.writeByte(LITERAL_OF);
             out.writeUTF(literalOf.type().toString());
             host.writeArgumentType(out, literalOf.literal());
+        } else if (description.get() instanceof ArgumentDescription.Command) {
+            out.writeByte(COMMAND);
         } else {
             throw new IllegalStateException("Unknown argument description: " + description.get());
         }
@@ -233,7 +239,11 @@ public final class ScriptTreeCodec {
             out.writeUTF(restriction.input().toString());
         }
         out.writeInt(restriction.variant());
-        host.writeApplicability(out, restriction.applicability());
+        out.writeBoolean(restriction.applicability() != null);
+        if (restriction.applicability() != null) {
+            host.writeApplicability(out, restriction.applicability());
+        }
+        writeNames(restriction.onlyInside(), out);
     }
 
     /** One node as read, before the nodes it points at exist. */
@@ -292,6 +302,7 @@ public final class ScriptTreeCodec {
                 TypeKey type = readKey(in);
                 yield rebuild.argument(new ArgumentDescription.LiteralOf(host.readArgumentType(in), type));
             }
+            case COMMAND -> rebuild.argument(new ArgumentDescription.Command());
             default -> throw new IOException("Unknown argument type form " + form);
         };
     }
@@ -312,7 +323,28 @@ public final class ScriptTreeCodec {
         String name = in.readUTF();
         TypeKey input = in.readBoolean() ? readKey(in) : null;
         int variant = in.readInt();
-        return new Restriction(kind, name, input, variant, host.readApplicability(in));
+        Applicability applicability = in.readBoolean() ? host.readApplicability(in) : null;
+        Set<String> onlyInside = readNames(in, "executors a restriction is inside");
+        if (applicability == null && onlyInside.isEmpty()) {
+            throw new IOException("The restriction of '" + name + "' restricts nothing");
+        }
+        return new Restriction(kind, name, input, variant, applicability, onlyInside);
+    }
+
+    private static void writeNames(Set<String> names, DataOutput out) throws IOException {
+        out.writeInt(names.size());
+        for (String name : names) {
+            out.writeUTF(name);
+        }
+    }
+
+    private static Set<String> readNames(DataInput in, String what) throws IOException {
+        int count = readCount(in, what);
+        Set<String> names = new LinkedHashSet<>();
+        for (int i = 0; i < count; i++) {
+            names.add(in.readUTF());
+        }
+        return names;
     }
 
     private static TypeKey readKey(DataInput in) throws IOException {

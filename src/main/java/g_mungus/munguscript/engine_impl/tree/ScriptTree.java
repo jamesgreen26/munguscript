@@ -3,6 +3,7 @@ package g_mungus.munguscript.engine_impl.tree;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.tree.ArgumentCommandNode;
 import com.mojang.brigadier.tree.CommandNode;
+import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
 import g_mungus.munguscript.language.type.TypeKey;
 
@@ -176,6 +177,13 @@ public final class ScriptTree<S> {
      */
     public static boolean isExecutor(CommandNode<?> node) {
         return argumentOf(node).filter(argument -> argument.getRedirect() == null).isPresent();
+    }
+
+    /** How many executors share the name of {@code executor}, an executor's word. */
+    public static int variantCount(CommandNode<?> executor) {
+        return argumentOf(executor)
+                .map(argument -> argument.getType() instanceof OverloadedArgument overloaded ? overloaded.variants().size() : 1)
+                .orElse(1);
     }
 
     /**

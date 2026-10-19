@@ -26,6 +26,10 @@ public sealed interface ArgumentDescription {
     record LiteralOf(ArgumentType<?> literal, TypeKey type) implements ArgumentDescription {
     }
 
+    /** The argument of a command executor: a whole command, written as {@code command(...)}. */
+    record Command() implements ArgumentDescription {
+    }
+
     /** The argument of executors that share a name: one variant per executor, in order. */
     record Overloaded(List<ValueOrLiteral> variants) implements ArgumentDescription {
         public Overloaded {

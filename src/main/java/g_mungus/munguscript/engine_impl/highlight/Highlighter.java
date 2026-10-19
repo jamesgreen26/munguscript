@@ -12,11 +12,13 @@ import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.Highlight;
 import g_mungus.munguscript.engine.preprocess.PreProcessorToken;
 import g_mungus.munguscript.engine.preprocess.SourceMap;
+import g_mungus.munguscript.engine_impl.argument.CommandSlotArgument;
 import g_mungus.munguscript.engine_impl.argument.CommandText;
 import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
+import g_mungus.munguscript.engine_impl.argument.WrappedCommand;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
 import g_mungus.munguscript.engine_impl.tree.NodeNames;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
@@ -109,6 +111,11 @@ public final class Highlighter<S> {
             found.add(new Highlight(StringRange.between(range.getEnd() - 1, range.getEnd()), Highlight.Kind.GETTER));
             return;
         }
+        if (node instanceof ArgumentCommandNode<S, ?> argument && argument.getType() instanceof CommandSlotArgument
+                && WrappedCommand.startsAt(input, range.getStart())) {
+            wrapped(input, range.getStart(), source, found);
+            return;
+        }
         if (node instanceof ArgumentCommandNode<S, ?> argument) {
             boolean takesValueOf = argument.getType() instanceof ValueOrLiteralArgument
                     || argument.getType() instanceof OverloadedArgument;
@@ -156,6 +163,27 @@ public final class Highlighter<S> {
         return closed.end();
     }
 
+    /**
+     * A {@code command(} at {@code start}, its command, and its {@code )} if it has one: the brackets
+     * as a {@code value_of}'s are, and the command as a command.
+     *
+     * @return where the {@code command(...)} ends: past its {@code )}, or at the end of the input
+     */
+    private int wrapped(String input, int start, @Nullable S source, List<Highlight> found) {
+        int innerStart = start + WrappedCommand.OPEN.length();
+        int close = CommandText.closingParenthesis(input, innerStart);
+        int innerEnd = close < 0 ? input.length() : close;
+        found.add(new Highlight(StringRange.between(start, innerStart), Highlight.Kind.ARGUMENT));
+        ParseResults<S> inner = WrappedCommand.parse(commands, input, innerStart, innerEnd, source);
+        words(inner.getContext(), input, source, found);
+        rest(input, inner.getReader().getCursor(), innerEnd, source, found);
+        if (close < 0) {
+            return input.length();
+        }
+        found.add(new Highlight(StringRange.between(close, close + 1), Highlight.Kind.ARGUMENT));
+        return close + 1;
+    }
+
     private static @Nullable ValueOf closed(String input, int start) {
         StringReader reader = new StringReader(input);
         reader.setCursor(start);
@@ -174,6 +202,10 @@ public final class Highlighter<S> {
         }
         if (ValueOf.startsAt(input, start)) {
             rest(input, valueOf(input, start, source, found), to, source, found);
+            return;
+        }
+        if (WrappedCommand.startsAt(input, start)) {
+            rest(input, wrapped(input, start, source, found), to, source, found);
             return;
         }
         int end = to;

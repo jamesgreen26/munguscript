@@ -27,6 +27,7 @@ import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
 import g_mungus.munguscript.engine_impl.argument.CommandText;
 import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
+import g_mungus.munguscript.engine_impl.argument.WrappedCommand;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
 import g_mungus.munguscript.engine_impl.failure.FailureDescriber;
 import g_mungus.munguscript.engine_impl.highlight.Highlighter;
@@ -87,9 +88,10 @@ final class ViewImpl<S> implements ScriptView<S> {
         Conversions conversions = Conversions.of(this.types.values());
         TypeGraph graph = TypeGraph.of(tree).with(conversions.edges());
         this.expressions = new ExpressionReader<>(tree, graph, conversions, names);
+        RestrictionIndex<S> restrictionIndex = new RestrictionIndex<>(host, restrictions);
         this.suggester = new Suggester<>(tree, graph, TypeGraph.withoutConversions(tree), expressions, commands,
-                new RestrictionIndex<>(host, restrictions));
-        this.arguments = new ViewArguments<>(tree, suggester, expressions);
+                restrictionIndex);
+        this.arguments = new ViewArguments<>(tree, suggester, expressions, commands, restrictionIndex);
         this.highlighter = new Highlighter<>(tree, commands, expressions);
         this.failures = new FailureDescriber<>(commands);
     }
@@ -118,6 +120,33 @@ final class ViewImpl<S> implements ScriptView<S> {
     @Override
     public ParseResults<S> parse(String command, S source) {
         return commands.parse(command, source);
+    }
+
+    @Override
+    public ParseResults<S> parseAt(String command, int cursor, S source) {
+        int innerStart = -1;
+        int innerEnd = command.length();
+        int i = 0;
+        while (i < cursor && i < command.length()) {
+            char c = command.charAt(i);
+            if (CommandText.isQuote(c)) {
+                i = CommandText.skipQuoted(command, i);
+                continue;
+            }
+            if (WrappedCommand.startsAt(command, i)) {
+                int start = i + WrappedCommand.OPEN.length();
+                int close = CommandText.closingParenthesis(command, start);
+                // Still open where the cursor is; a later one inside it is nearer.
+                if (start <= cursor && (close < 0 || close >= cursor)) {
+                    innerStart = start;
+                    innerEnd = close < 0 ? command.length() : close;
+                }
+                i = start;
+                continue;
+            }
+            i++;
+        }
+        return innerStart < 0 ? parse(command, source) : WrappedCommand.parse(commands, command, innerStart, innerEnd, source);
     }
 
     @Override

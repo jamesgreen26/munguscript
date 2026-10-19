@@ -1,9 +1,13 @@
 package g_mungus.munguscript.engine_impl;
 
 import com.mojang.brigadier.ParseResults;
+import com.mojang.brigadier.context.CommandContextBuilder;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.Highlight;
+import g_mungus.munguscript.engine.LiveLine;
+import g_mungus.munguscript.engine.LivePolicy;
 import g_mungus.munguscript.engine.ScriptEngine;
 import g_mungus.munguscript.engine.ScriptHost;
 import g_mungus.munguscript.engine.Vocabulary;
@@ -31,8 +35,11 @@ import g_mungus.munguscript.language.type.TypeKey;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -107,6 +114,39 @@ final class ScriptEngineImpl<S> implements ScriptEngine<S> {
     }
 
     @Override
+    public LiveLine<S> compileLive(String command, S source, LivePolicy policy) throws CommandSyntaxException {
+        ParseResults<S> parse = view.parse(command, source);
+        refuseIncomplete(parse);
+        Set<ScriptNode> live = Collections.newSetFromMap(new IdentityHashMap<>());
+        live.addAll(registrations.standards());
+        for (ScriptNode node : registrations.nodes()) {
+            if (policy.live(node)) {
+                live.add(node);
+            }
+        }
+        return new LiveLineImpl<>(host, view.commands(), parse, live);
+    }
+
+    /** Refuses a parse that did not read the whole command to a node that runs, as Brigadier's execute would. */
+    private static void refuseIncomplete(ParseResults<?> parse) throws CommandSyntaxException {
+        if (parse.getReader().canRead()) {
+            if (parse.getExceptions().size() == 1) {
+                throw parse.getExceptions().values().iterator().next();
+            } else if (parse.getContext().getRange().isEmpty()) {
+                throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.dispatcherUnknownCommand().createWithContext(parse.getReader());
+            }
+            throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.dispatcherUnknownArgument().createWithContext(parse.getReader());
+        }
+        CommandContextBuilder<?> last = parse.getContext();
+        while (last.getChild() != null) {
+            last = last.getChild();
+        }
+        if (last.getCommand() == null) {
+            throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.dispatcherUnknownCommand().createWithContext(parse.getReader());
+        }
+    }
+
+    @Override
     public ScriptFailure describe(Throwable failure, String playerCommand, String executedCommand, SourceMap sourceMap) {
         return failures.describe(failure, playerCommand, executedCommand, sourceMap);
     }
@@ -124,6 +164,11 @@ final class ScriptEngineImpl<S> implements ScriptEngine<S> {
     @Override
     public ParseResults<S> parse(String command, S source) {
         return view.parse(command, source);
+    }
+
+    @Override
+    public ParseResults<S> parseAt(String command, int cursor, S source) {
+        return view.parseAt(command, cursor, source);
     }
 
     @Override

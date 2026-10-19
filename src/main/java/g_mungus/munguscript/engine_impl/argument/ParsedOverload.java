@@ -18,8 +18,8 @@ public record ParsedOverload(Map<Integer, Object> variants, boolean runnable) {
         variants = Collections.unmodifiableMap(new LinkedHashMap<>(variants));
     }
 
-    /** A placeholder, which every variant accepts alike. */
-    static ParsedOverload forAll(int variantCount, Object form, boolean runnable) {
+    /** A placeholder, or a command executor's command, which every variant takes alike. */
+    public static ParsedOverload forAll(int variantCount, Object form, boolean runnable) {
         Map<Integer, Object> variants = new LinkedHashMap<>();
         for (int i = 0; i < variantCount; i++) {
             variants.put(i, form);

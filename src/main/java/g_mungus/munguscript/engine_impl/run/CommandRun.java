@@ -13,11 +13,25 @@ import org.jetbrains.annotations.Nullable;
  * branches after the one that ran do nothing but return its result.
  */
 public final class CommandRun implements RunState {
+    private final @Nullable LivePass pass;
     private boolean conditional;
     private boolean negated;
     private @Nullable Object conditionValue;
     private boolean branchRan;
     private int result;
+
+    public CommandRun() {
+        this(null);
+    }
+
+    /** A run that is part of a {@link LivePass}. */
+    public CommandRun(@Nullable LivePass pass) {
+        this.pass = pass;
+    }
+
+    @Nullable LivePass pass() {
+        return pass;
+    }
 
     /** {@code if} or {@code unless}: the branch now runs only if the condition that follows holds. */
     void startCondition(boolean negated) {
@@ -42,8 +56,15 @@ public final class CommandRun implements RunState {
     /**
      * Runs the current branch's executor if this is the branch to run. Once one branch has run, every
      * later one gives its result instead.
+     *
+     * <p>A refresh goes through every branch, whatever its condition, so that every argument is
+     * worked out; none of them counts as having run.
      */
     int runBranch(Branch executor) throws CommandSyntaxException {
+        if (pass != null && pass.refreshing()) {
+            executor.run();
+            return 0;
+        }
         if (branchRan) {
             return result;
         }

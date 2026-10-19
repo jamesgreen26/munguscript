@@ -9,7 +9,17 @@ import org.jetbrains.annotations.Nullable;
  * Brigadier commands can only return an int, so the last step leaves the result here.
  */
 public final class ValueRun implements RunState {
+    private final @Nullable LivePass pass;
     private @Nullable Object value;
+
+    /** @param pass the pass of the command it is part of, if any */
+    ValueRun(@Nullable LivePass pass) {
+        this.pass = pass;
+    }
+
+    @Nullable LivePass pass() {
+        return pass;
+    }
 
     public @Nullable Object value() {
         return value;

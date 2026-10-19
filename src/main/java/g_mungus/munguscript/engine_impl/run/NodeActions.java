@@ -4,7 +4,9 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.RedirectModifier;
 import com.mojang.brigadier.context.CommandContext;
 import g_mungus.munguscript.engine.ScriptHost;
+import g_mungus.munguscript.engine_impl.argument.CommandSlotArgument;
 import g_mungus.munguscript.engine_impl.argument.ParsedOverload;
+import g_mungus.munguscript.engine_impl.argument.WrappedCommand;
 import g_mungus.munguscript.engine_impl.build.ExecutorGroup;
 import g_mungus.munguscript.language.node.ScriptExecutor;
 import g_mungus.munguscript.language.node.ScriptNode;
@@ -107,6 +109,16 @@ public final class NodeActions<S> {
         };
     }
 
+    /** A command executor's {@code command(...)}: hands it the command, if this branch is the one to run. */
+    public Command<S> commandExecutor(ExecutorGroup group) {
+        return context -> {
+            WrappedCommand wrapped = context.getArgument(CommandSlotArgument.NAME, WrappedCommand.class);
+            ParsedOverload parsed = ParsedOverload.forAll(group.variants().size(), wrapped.command(), true);
+            CommandRun run = state(context, CommandRun.class);
+            return run == null ? 0 : run.runBranch(() -> runOverload(group, parsed, context));
+        };
+    }
+
     /** An executor's argument: runs the overload meant for the target, if this branch is the one to run. */
     public Command<S> executor(ExecutorGroup group) {
         return context -> {
@@ -121,18 +133,56 @@ public final class NodeActions<S> {
     }
 
     private int runOverload(ExecutorGroup group, ParsedOverload parsed, CommandContext<S> context) {
-        S source = context.getSource();
-        // Applicability only chooses between overloads: an executor alone under its name runs anywhere.
-        int chosen = group.variants().size() == 1 ? 0 : Overloads.choose(parsed.indices(),
-                variant -> Overloads.match(host, group.variants().get(variant).applicability(), source));
+        LivePass pass = LivePass.of(host.runState(context.getSource()));
+        if (pass != null) {
+            return runLive(pass, group, parsed, context);
+        }
+        int chosen = choose(group, parsed, context.getSource());
         // None meant for this target: the command does nothing, which is not a failure.
         return chosen < 0 ? 0 : execute(group.variants().get(chosen), parsed.value(chosen), group.name(), context);
     }
 
-    private <I> int execute(ScriptExecutor<I, ?> executor, Object parsed, String name, CommandContext<S> context) {
-        NodeContext nodeContext = NodeContext.of(host, context.getSource());
+    /**
+     * An executor in a {@link LivePass}. The host is asked which overload runs only in a refresh,
+     * since a live run may be where the host cannot answer. A refresh works out the argument and runs
+     * nothing; a live run runs the executor. One that may not run live fails either way.
+     */
+    private int runLive(LivePass pass, ExecutorGroup group, ParsedOverload parsed, CommandContext<S> context) {
+        int position = LivePass.position(context);
+        int chosen;
+        if (pass.refreshing()) {
+            chosen = choose(group, parsed, context.getSource());
+            pass.recordOverload(position, chosen);
+        } else {
+            chosen = pass.recordedOverload(position);
+        }
+        if (chosen < 0) {
+            return 0;
+        }
+        ScriptExecutor<?, ?> executor = group.variants().get(chosen);
+        if (!pass.isLive(executor)) {
+            throw LivePass.notLive(group.name(), context);
+        }
+        Object written = slots.written(parsed.value(chosen), executor.inputType().key(), group.name(), context);
+        if (pass.refreshing()) {
+            return 0;
+        }
+        return execute(executor, written, NodeContext.of(host, context.getSource()));
+    }
+
+    // Applicability only chooses between overloads: an executor alone under its name runs anywhere.
+    private int choose(ExecutorGroup group, ParsedOverload parsed, S source) {
+        return group.variants().size() == 1 ? 0 : Overloads.choose(parsed.indices(),
+                variant -> Overloads.match(host, group.variants().get(variant).applicability(), source));
+    }
+
+    private int execute(ScriptExecutor<?, ?> executor, Object parsed, String name, CommandContext<S> context) {
         Object written = slots.written(parsed, executor.inputType().key(), name, context);
-        return executor.execute(executor.resolveArgument(written, nodeContext), nodeContext);
+        return execute(executor, written, NodeContext.of(host, context.getSource()));
+    }
+
+    private static <I> int execute(ScriptExecutor<I, ?> executor, @Nullable Object written, NodeContext context) {
+        return executor.execute(executor.resolveArgument(written, context), context);
     }
 
     private <R> @Nullable R state(CommandContext<S> context, Class<R> kind) {

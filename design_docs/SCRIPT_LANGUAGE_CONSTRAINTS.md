@@ -88,7 +88,31 @@ run and looping are decisions the sequencer makes on its own.
   reads the channel, not back to a sequencer.
 - A general `print` has nowhere to go other than the runner itself.
 
-## 10. What This Leaves Open
+## 10. Live Lines
+
+- A runner can store one line and run it over and over where only some words are safe to run,
+  such as on a physics thread that must not touch the world (`ScriptEngine.compileLive`).
+- The host says which of its words may run live. The engine's own mappers always may.
+- A chain with a word that may not run live is worked out ahead of time, on the runner's own
+  thread, up to and including the last such word. Live runs start from that value. Everything in
+  that part, including a `value_of` inside a mapper's argument, reads as it stood at the last
+  refresh.
+- A refresh reads every condition and argument, whichever branch would run, and runs no executor.
+- Every executor in the line must be able to run live; one that may not fails the refresh.
+- The line still stands alone. It holds no state between runs except the values of its last
+  refresh.
+- A command executor (`ScriptNodes.commandExecutor`) takes a whole command written as
+  `command(...)`: what is in the brackets is checked, highlighted and suggested as a command, but
+  the executor only gets its text, to keep or send on, such as for a runner to run live. The
+  brackets end it, so an `else` after them belongs to the line.
+- Inside a command executor's `command(...)`, only the executors meant for it (`onlyInside`) are
+  suggested or parse; any other is a syntax error there, a command executor inside itself included.
+  What a command executor keeps is usually run somewhere else, so an executor has to say it makes
+  sense there. Getters and mappers are not limited.
+- At the top of a command, `onlyInside` only steers suggestions, as an applicability does: the
+  executor still parses and runs there.
+
+## 11. What This Leaves Open
 
 - Anything inside a single line: literal values, the standard library of mappers, more types,
   and more operators.

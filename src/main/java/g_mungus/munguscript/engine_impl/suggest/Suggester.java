@@ -15,10 +15,12 @@ import com.mojang.brigadier.tree.ArgumentCommandNode;
 import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import g_mungus.munguscript.engine_impl.argument.ArgumentLookup;
+import g_mungus.munguscript.engine_impl.argument.CommandSlotArgument;
 import g_mungus.munguscript.engine_impl.argument.LiteralOfArgument;
 import g_mungus.munguscript.engine_impl.argument.OverloadedArgument;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.argument.ValueOrLiteralArgument;
+import g_mungus.munguscript.engine_impl.argument.WrappedCommand;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
 import g_mungus.munguscript.engine_impl.tree.NodeNames;
 import g_mungus.munguscript.engine_impl.tree.ScriptTree;
@@ -78,7 +80,7 @@ public final class Suggester<S> {
 
     /** Suggestions at the end of {@code text}, a script command. Ranges are in {@code text}. */
     public List<Suggestion> inCommand(String text, S source, Tokens tokens) {
-        return atEnd(commands.parse(text, source), text, null, source, tokens);
+        return atEnd(commands.parse(text, source), text, null, source, tokens, null);
     }
 
     /**
@@ -89,7 +91,7 @@ public final class Suggester<S> {
      */
     public List<Suggestion> inLoneExpression(String input, int start, @Nullable Set<TypeKey> targets, S source,
                                              Tokens tokens) {
-        return atEnd(expressions.parse(input, start, input.length(), source), input, targets, source, tokens);
+        return atEnd(expressions.parse(input, start, input.length(), source), input, targets, source, tokens, null);
     }
 
     /** Suggestions for one of the engine's argument types, as Brigadier asks a type for them. */
@@ -102,7 +104,7 @@ public final class Suggester<S> {
         String owner = nodes.isEmpty() ? "" : nodes.get(nodes.size() - 1).getNode().getName();
         CommandContext<S> own = (CommandContext<S>) context;
         return CompletableFuture.completedFuture(collect(builder.getInput(),
-                argument(argument, owner, own, builder, own.getSource(), Tokens.NONE)));
+                argument(argument, owner, own, builder, own.getSource(), Tokens.NONE, null)));
     }
 
     /**
@@ -130,9 +132,10 @@ public final class Suggester<S> {
      * What may come at the end of a parse: the children of the node the cursor is after.
      *
      * @param targets the types wanted, inside a {@code value_of}; null in a command
+     * @param inside  the command executor whose {@code command(...)} this is in, or null
      */
     private List<Suggestion> atEnd(ParseResults<S> parse, String text, @Nullable Set<TypeKey> targets, S source,
-                                   Tokens tokens) {
+                                   Tokens tokens, @Nullable String inside) {
         SuggestionContext<S> at = parse.getContext().findSuggestionContext(text.length());
         CommandContext<S> context = parse.getContext().build(text);
         StringRange range = StringRange.between(at.startPos, text.length());
@@ -144,12 +147,12 @@ public final class Suggester<S> {
                 literalOf = true;
             } else if (child instanceof LiteralCommandNode<S> literal) {
                 if (literal.getLiteral().toLowerCase(Locale.ROOT).startsWith(typed.toLowerCase(Locale.ROOT))
-                        && offered(at.parent, literal, targets, typed, source)) {
+                        && offered(at.parent, literal, targets, typed, source, inside)) {
                     suggestions.add(new Suggestion(range, literal.getLiteral()));
                 }
             } else if (child instanceof ArgumentCommandNode<S, ?> argument) {
                 SuggestionsBuilder builder = new SuggestionsBuilder(text, at.startPos);
-                suggestions.addAll(argument(argument, at.parent.getName(), context, builder, source, tokens));
+                suggestions.addAll(argument(argument, at.parent.getName(), context, builder, source, tokens, inside));
             }
         }
         // One for every primitive type, but offered once, and like value_of only once it has been started.
@@ -169,9 +172,10 @@ public final class Suggester<S> {
 
     /** Suggestions for an argument slot: the engine's own, or whatever a host's argument type offers. */
     private List<Suggestion> argument(ArgumentCommandNode<S, ?> node, String owner, CommandContext<S> context,
-                                      SuggestionsBuilder builder, S source, Tokens tokens) {
-        if (node.getType() instanceof ValueOrLiteralArgument || node.getType() instanceof OverloadedArgument) {
-            return argument(node.getType(), owner, context, builder, source, tokens);
+                                      SuggestionsBuilder builder, S source, Tokens tokens, @Nullable String inside) {
+        if (node.getType() instanceof ValueOrLiteralArgument || node.getType() instanceof OverloadedArgument
+                || node.getType() instanceof CommandSlotArgument) {
+            return argument(node.getType(), owner, context, builder, source, tokens, inside);
         }
         try {
             return node.listSuggestions(context, builder).join().getList();
@@ -181,8 +185,11 @@ public final class Suggester<S> {
     }
 
     private List<Suggestion> argument(ArgumentType<?> type, String owner, CommandContext<S> context,
-                                      SuggestionsBuilder builder, S source, Tokens tokens) {
-        List<ValueOrLiteralArgument> slots = slots(type, owner, source);
+                                      SuggestionsBuilder builder, S source, Tokens tokens, @Nullable String inside) {
+        if (type instanceof CommandSlotArgument) {
+            return inCommandSlot(builder, source, tokens, owner);
+        }
+        List<ValueOrLiteralArgument> slots = slots(type, owner, source, inside);
         Set<TypeKey> targets = new LinkedHashSet<>();
         slots.forEach(slot -> targets.add(slot.target()));
         if (ValueOf.startsAt(builder.getInput(), builder.getStart())) {
@@ -196,11 +203,11 @@ public final class Suggester<S> {
     }
 
     /** The slots an argument offers: for executors that share a name, those meant for the target. */
-    private List<ValueOrLiteralArgument> slots(ArgumentType<?> type, String owner, S source) {
+    private List<ValueOrLiteralArgument> slots(ArgumentType<?> type, String owner, S source, @Nullable String inside) {
         if (type instanceof OverloadedArgument overloaded) {
             List<ValueOrLiteralArgument> applicable = new ArrayList<>();
             for (int i = 0; i < overloaded.variants().size(); i++) {
-                if (restrictions.variantApplies(owner, i, source)) {
+                if (restrictions.variantApplies(owner, i, source, inside)) {
                     applicable.add(overloaded.variants().get(i));
                 }
             }
@@ -209,10 +216,32 @@ public final class Suggester<S> {
         return List.of((ValueOrLiteralArgument) type);
     }
 
+    /**
+     * A command executor's slot: {@code command(} until it is started, and then what the command
+     * inside takes, as in a command of its own, with {@code )} once it could end.
+     */
+    private List<Suggestion> inCommandSlot(SuggestionsBuilder builder, S source, Tokens tokens, String executor) {
+        String input = builder.getInput();
+        int start = builder.getStart();
+        if (!WrappedCommand.startsAt(input, start)) {
+            String typed = builder.getRemaining().toLowerCase(Locale.ROOT);
+            return WrappedCommand.OPEN.startsWith(typed)
+                    ? List.of(new Suggestion(StringRange.between(start, input.length()), WrappedCommand.OPEN))
+                    : List.of();
+        }
+        ParseResults<S> parse = WrappedCommand.parse(commands, input, start + WrappedCommand.OPEN.length(),
+                input.length(), source);
+        List<Suggestion> suggestions = atEnd(parse, input, null, source, tokens, executor);
+        if (WrappedCommand.runs(parse)) {
+            suggestions.add(new Suggestion(StringRange.at(input.length()), CLOSE));
+        }
+        return suggestions;
+    }
+
     /** Inside an open {@code value_of(}, whose expression runs from {@code start} to the end of {@code input}. */
     private List<Suggestion> inExpression(String input, int start, Set<TypeKey> targets, S source, Tokens tokens) {
         ParseResults<S> parse = expressions.parse(input, start, input.length(), source);
-        List<Suggestion> suggestions = atEnd(parse, input, targets, source, tokens);
+        List<Suggestion> suggestions = atEnd(parse, input, targets, source, tokens, null);
         ParsedCommandNode<S> last = ExpressionReader.lastNode(parse.getContext());
         if (!parse.getReader().canRead() && last != null
                 && ScriptTree.typeAfter(last.getNode()).filter(targets::contains).isPresent()) {
@@ -226,13 +255,14 @@ public final class Suggester<S> {
      * what is wanted, without a conversion unless {@code typed} has started the word.
      */
     private boolean offered(CommandNode<S> parent, LiteralCommandNode<S> child, @Nullable Set<TypeKey> targets,
-                            String typed, S source) {
+                            String typed, S source,
+                            @Nullable String inside) {
         String name = child.getLiteral();
         if (ScriptTree.isKeyword(name)) {
             return true;
         }
         if (ScriptTree.isExecutor(child)) {
-            return restrictions.executorApplies(name, variantCount(child), source);
+            return restrictions.executorApplies(name, ScriptTree.variantCount(child), source, inside);
         }
         if (typed.isEmpty() && tree.isConverted(child)) {
             return false;
@@ -268,11 +298,5 @@ public final class Suggester<S> {
 
     private boolean isValueRoot(CommandNode<S> node) {
         return node == tree.value() || expressions.isRoot(node);
-    }
-
-    private static int variantCount(CommandNode<?> executor) {
-        return ScriptTree.argumentOf(executor)
-                .map(argument -> argument.getType() instanceof OverloadedArgument overloaded ? overloaded.variants().size() : 1)
-                .orElse(1);
     }
 }

@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToIntBiFunction;
+import java.util.Set;
 
 /**
  * @param argumentMapper turns what the argument parsed into the input
@@ -19,8 +20,13 @@ public record SimpleExecutor<I, A>(
         Class<A> argumentClass,
         BiFunction<A, ScriptContext, I> argumentMapper,
         ToIntBiFunction<I, ScriptContext> function,
-        @Nullable Applicability applicability
+        @Nullable Applicability applicability,
+        Set<String> onlyInside
 ) implements ScriptExecutor<I, A> {
+
+    public SimpleExecutor {
+        onlyInside = Set.copyOf(onlyInside);
+    }
 
     @Override
     public ArgumentType<A> argumentType(BuildEnvironment environment) {
@@ -44,6 +50,15 @@ public record SimpleExecutor<I, A>(
     /** The same executor, preferred for these targets when another executor shares its name. */
     public SimpleExecutor<I, A> withApplicability(@Nullable Applicability applicability) {
         return new SimpleExecutor<>(displayName, inputType, argumentFactory, argumentClass, argumentMapper, function,
-                applicability);
+                applicability, onlyInside);
+    }
+
+    /**
+     * The same executor, meant for the {@code command(...)} of these command executors: the only executors that
+     * parse there, and only suggested there.
+     */
+    public SimpleExecutor<I, A> onlyInside(String... commandExecutors) {
+        return new SimpleExecutor<>(displayName, inputType, argumentFactory, argumentClass, argumentMapper, function,
+                applicability, Set.of(commandExecutors));
     }
 }

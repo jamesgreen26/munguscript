@@ -60,6 +60,20 @@ public final class Step<S> {
             // Only the primitive types are written in a literal_of, and each parses to its value.
             return context.getArgument(argumentName, Object.class);
         }
+        LivePass pass = LivePass.of(host.runState(context.getSource()));
+        if (pass == null || pass.isLive(node)) {
+            return run(node, input, context);
+        }
+        int position = LivePass.position(context);
+        if (!pass.refreshing()) {
+            return pass.recordedValue(position, node, context);
+        }
+        Object value = run(node, input, context);
+        pass.record(position, value);
+        return value;
+    }
+
+    private @Nullable Object run(ScriptNode node, @Nullable Object input, CommandContext<S> context) {
         NodeContext nodeContext = NodeContext.of(host, context.getSource());
         try {
             if (node instanceof ScriptGetter<?> getter) {

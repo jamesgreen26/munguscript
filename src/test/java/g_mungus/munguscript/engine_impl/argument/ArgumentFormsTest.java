@@ -72,6 +72,10 @@ class ArgumentFormsTest {
             public TypeKey check(ArgumentType<?> argument, ValueOf valueOf, List<TypeKey> targets) {
                 return BuiltInTypes.INT.key();
             }
+
+            @Override
+            public void checkCommand(ArgumentType<?> slot, WrappedCommand command) {
+            }
         });
         OverloadedArgument overloaded = new OverloadedArgument(List.of(
                 new ValueOrLiteralArgument(StringArgumentType.string(), BuiltInTypes.STRING.key(), lookup),

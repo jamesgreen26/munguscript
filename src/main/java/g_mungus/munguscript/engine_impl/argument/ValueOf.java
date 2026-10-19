@@ -43,23 +43,12 @@ public record ValueOf(String input, int start, int innerStart, int innerEnd, int
         String text = reader.getString();
         int start = reader.getCursor();
         int innerStart = start + OPEN.length();
-        int depth = 1;
-        int i = innerStart;
-        while (i < text.length()) {
-            char c = text.charAt(i);
-            if (CommandText.isQuote(c)) {
-                i = CommandText.skipQuoted(text, i);
-                continue;
-            }
-            if (c == '(') {
-                depth++;
-            } else if (c == ')' && --depth == 0) {
-                reader.setCursor(i + 1);
-                return new ValueOf(text, start, innerStart, i, i + 1);
-            }
-            i++;
+        int close = CommandText.closingParenthesis(text, innerStart);
+        if (close < 0) {
+            throw UNCLOSED.createWithContext(reader);
         }
-        throw UNCLOSED.createWithContext(reader);
+        reader.setCursor(close + 1);
+        return new ValueOf(text, start, innerStart, close, close + 1);
     }
 
     /** The expression inside the parentheses, as written. */

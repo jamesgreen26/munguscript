@@ -34,7 +34,8 @@ public final class Evaluator<S> {
      * @throws ScriptFault if it cannot be read as a {@code target}, or a step in it fails
      */
     public @Nullable Object evaluate(ValueOf valueOf, TypeKey target, String owner, S source) {
-        ValueRun run = new ValueRun();
+        // Part of whatever live pass the command it is in is.
+        ValueRun run = new ValueRun(LivePass.of(host.runState(source)));
         S runSource = host.withRunState(source, run);
         ExpressionReader<S> expressions = reader.get();
         ExpressionReader.Result<S> result = expressions.read(valueOf, owner, target, runSource);

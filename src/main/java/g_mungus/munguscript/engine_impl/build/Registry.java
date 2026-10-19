@@ -58,13 +58,15 @@ public final class Registry implements ScriptRegistrar {
             checkUnique(node, getters, mappers);
         }
         List<ScriptNode> all = new ArrayList<>(nodes);
+        List<ScriptNode> standards = new ArrayList<>();
         for (ScriptNode standard : standardMappers()) {
             // A host mapper with the same name and input type replaces the standard one.
             if (!mappers.contains(NodeTypes.MapperKey.of(standard).orElseThrow())) {
                 all.add(standard);
+                standards.add(standard);
             }
         }
-        return new Registrations(List.copyOf(types.values()), all);
+        return new Registrations(List.copyOf(types.values()), all, standards);
     }
 
     private void checkTypes(ScriptNode node) {

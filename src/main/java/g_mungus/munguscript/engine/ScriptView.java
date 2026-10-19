@@ -38,6 +38,14 @@ public interface ScriptView<S> {
     ParseResults<S> parse(String command, S source);
 
     /**
+     * The parse of the command {@code cursor} stands in: inside a {@code command(...)} that is still
+     * open there, the command in it, parsed in place so its positions are positions in
+     * {@code command}; anywhere else, the whole command. For hinting what comes next where the cursor
+     * is.
+     */
+    ParseResults<S> parseAt(String command, int cursor, S source);
+
+    /**
      * Suggestions at {@code cursor} in a command as the player is writing it. When a script's
      * pre-processing is given, its tokens are offered as well. A cursor outside the command is taken
      * to be at its nearer end.

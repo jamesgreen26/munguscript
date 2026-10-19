@@ -1,10 +1,12 @@
 package g_mungus.munguscript.language.node;
 
 import com.mojang.brigadier.arguments.ArgumentType;
+import g_mungus.munguscript.language.builtin.BuiltInTypes;
 import g_mungus.munguscript.language.type.BuildEnvironment;
 import g_mungus.munguscript.language.type.ScriptType;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToIntBiFunction;
@@ -74,7 +76,7 @@ public final class ScriptNodes {
                 ? literal::argumentType
                 : environment -> (ArgumentType<A>) narrowed;
         return new SimpleExecutor<>(name, inputType, argumentFactory, literal.argumentClass(), literal::resolve,
-                function, null);
+                function, null, Set.of());
     }
 
     /** Takes an argument of some other kind and maps it to the input type, e.g. an enum to its ordinal. */
@@ -83,6 +85,18 @@ public final class ScriptNodes {
                                                        BiFunction<A, ScriptContext, I> argumentMapper,
                                                        ToIntBiFunction<I, ScriptContext> function) {
         return new SimpleExecutor<>(name, inputType, environment -> argumentType, argumentClass, argumentMapper,
-                function, null);
+                function, null, Set.of());
+    }
+
+    /**
+     * Takes a whole script command, written as {@code command(...)}, and is given its text, already
+     * pre-processed. What is in the brackets is read as a command of its own: checked, highlighted
+     * and suggested like one, but not run. Its input type is a string; a command executor shares its
+     * name with no other executor.
+     */
+    public static SimpleExecutor<String, String> commandExecutor(String name,
+                                                                 ToIntBiFunction<String, ScriptContext> function) {
+        return new SimpleExecutor<>(name, BuiltInTypes.STRING, environment -> CommandArgument.INSTANCE, String.class,
+                (command, context) -> command, function, null, Set.of());
     }
 }
