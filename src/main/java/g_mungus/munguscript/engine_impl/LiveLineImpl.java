@@ -39,7 +39,7 @@ final class LiveLineImpl<S> implements LiveLine<S> {
 
     @Override
     public void refresh(S source) throws CommandSyntaxException {
-        LivePass pass = LivePass.refresh(live, parses);
+        LivePass pass = LivePass.refresh(live);
         execute(source, pass);
         recorded = pass.recorded();
     }
@@ -50,10 +50,10 @@ final class LiveLineImpl<S> implements LiveLine<S> {
         if (last == null) {
             throw new IllegalStateException("A live line must be refreshed before it runs");
         }
-        return execute(source, LivePass.live(live, last, parses));
+        return execute(source, LivePass.live(live, last));
     }
 
     private int execute(S source, LivePass pass) throws CommandSyntaxException {
-        return dispatcher.execute(Parses.withSource(parse, host.withRunState(source, new CommandRun(pass))));
+        return dispatcher.execute(Parses.withSource(parse, host.withRunState(source, new CommandRun(pass, parses))));
     }
 }

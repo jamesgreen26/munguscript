@@ -30,28 +30,21 @@ public final class LivePass {
     private final Set<ScriptNode> live;
     private final Recorded recorded;
     private final boolean refreshing;
-    private final Parses parses;
 
-    private LivePass(Set<ScriptNode> live, Recorded recorded, boolean refreshing, Parses parses) {
+    private LivePass(Set<ScriptNode> live, Recorded recorded, boolean refreshing) {
         this.live = live;
         this.recorded = recorded;
         this.refreshing = refreshing;
-        this.parses = parses;
     }
 
-    /** A refresh, recording into a fresh {@link Recorded}, reading {@code value_of}s through the line's {@code parses}. */
-    public static LivePass refresh(Set<ScriptNode> live, Parses parses) {
-        return new LivePass(live, new Recorded(new HashMap<>(), new HashMap<>()), true, parses);
+    /** A refresh, recording into a fresh {@link Recorded}. */
+    public static LivePass refresh(Set<ScriptNode> live) {
+        return new LivePass(live, new Recorded(new HashMap<>(), new HashMap<>()), true);
     }
 
-    /** A live run over what a refresh recorded, reading {@code value_of}s through the line's {@code parses}. */
-    public static LivePass live(Set<ScriptNode> live, Recorded recorded, Parses parses) {
-        return new LivePass(live, recorded, false, parses);
-    }
-
-    /** The line's {@code value_of}s, as read. */
-    Parses parses() {
-        return parses;
+    /** A live run over what a refresh recorded. */
+    public static LivePass live(Set<ScriptNode> live, Recorded recorded) {
+        return new LivePass(live, recorded, false);
     }
 
     /** The pass carried by {@code state}, if it is part of one. */

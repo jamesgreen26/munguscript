@@ -14,6 +14,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class CommandRun implements RunState {
     private final @Nullable LivePass pass;
+    private final RunCache cache;
     private boolean conditional;
     private boolean negated;
     private @Nullable Object conditionValue;
@@ -21,12 +22,25 @@ public final class CommandRun implements RunState {
     private int result;
 
     public CommandRun() {
-        this(null);
+        this(null, null);
     }
 
     /** A run that is part of a {@link LivePass}. */
     public CommandRun(@Nullable LivePass pass) {
+        this(pass, null);
+    }
+
+    /**
+     * @param pass   the live pass it is part of, if any
+     * @param parses the parses of the command it runs, kept for each run of it, if it is run over and over
+     */
+    public CommandRun(@Nullable LivePass pass, @Nullable Parses parses) {
         this.pass = pass;
+        this.cache = new RunCache(parses);
+    }
+
+    RunCache cache() {
+        return cache;
     }
 
     @Nullable LivePass pass() {

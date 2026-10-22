@@ -3,6 +3,7 @@ package g_mungus.munguscript.engine_impl.run;
 import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import g_mungus.munguscript.engine.ScriptHost;
+import g_mungus.munguscript.engine.host.RunState;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
 import g_mungus.munguscript.engine_impl.expression.ExpressionReader;
 import g_mungus.munguscript.language.type.TypeKey;
@@ -36,14 +37,33 @@ public final class Evaluator<S> {
      */
     public @Nullable Object evaluate(ValueOf valueOf, TypeKey target, String owner, S source) {
         // Part of whatever live pass the command it is in is.
-        LivePass pass = LivePass.of(host.runState(source));
-        ValueRun run = new ValueRun(pass);
+        RunState state = host.runState(source);
+        LivePass pass = LivePass.of(state);
+        RunCache cache = RunCache.of(state);
+        // The same expression gives the same value within one run, except where a refresh has to record it.
+        boolean reuse = cache != null && (pass == null || !pass.refreshing());
+        String expression = valueOf.expression();
+        if (reuse && cache.has(expression, target)) {
+            return cache.get(expression, target);
+        }
+        ValueRun run = new ValueRun(pass, cache);
         S runSource = host.withRunState(source, run);
         ExpressionReader<S> expressions = reader.get();
-        // A live line reads each value_of once, and runs it again from that parse with this run's source.
-        ExpressionReader.Result.Readable<S> readable = pass == null ? read(expressions, valueOf, owner, target, runSource)
-                : pass.parses().get(valueOf, owner, target, () -> read(expressions, valueOf, owner, target, runSource));
-        ParseResults<S> parse = pass == null ? readable.parse() : Parses.withSource(readable.parse(), runSource);
+        // A command run over and over reads each value_of once, and runs it again from that parse with this run's
+        // source.
+        Parses parses = cache == null ? null : cache.parses();
+        ExpressionReader.Result.Readable<S> readable = parses == null ? read(expressions, valueOf, owner, target, runSource)
+                : parses.get(valueOf, owner, target, () -> read(expressions, valueOf, owner, target, runSource));
+        ParseResults<S> parse = parses == null ? readable.parse() : Parses.withSource(readable.parse(), runSource);
+        Object value = value(expressions, valueOf, readable, parse, run);
+        if (reuse) {
+            cache.put(expression, target, value);
+        }
+        return value;
+    }
+
+    private @Nullable Object value(ExpressionReader<S> expressions, ValueOf valueOf,
+                                   ExpressionReader.Result.Readable<S> readable, ParseResults<S> parse, ValueRun run) {
         try {
             expressions.dispatcher().execute(parse);
         } catch (ScriptFault fault) {

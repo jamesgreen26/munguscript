@@ -6,6 +6,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
 import g_mungus.munguscript.engine.Highlight;
+import g_mungus.munguscript.engine.CompiledCommand;
 import g_mungus.munguscript.engine.LiveLine;
 import g_mungus.munguscript.engine.LivePolicy;
 import g_mungus.munguscript.engine.ScriptEngine;
@@ -125,6 +126,13 @@ final class ScriptEngineImpl<S> implements ScriptEngine<S> {
             }
         }
         return new LiveLineImpl<>(host, view.commands(), parse, live);
+    }
+
+    @Override
+    public CompiledCommand<S> compile(String command, S source) throws CommandSyntaxException {
+        ParseResults<S> parse = view.parse(command, source);
+        refuseIncomplete(parse);
+        return new CompiledCommandImpl<>(host, view.commands(), parse);
     }
 
     /** Refuses a parse that did not read the whole command to a node that runs, as Brigadier's execute would. */

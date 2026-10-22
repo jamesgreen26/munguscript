@@ -10,11 +10,20 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class ValueRun implements RunState {
     private final @Nullable LivePass pass;
+    private final @Nullable RunCache cache;
     private @Nullable Object value;
 
-    /** @param pass the pass of the command it is part of, if any */
-    ValueRun(@Nullable LivePass pass) {
+    /**
+     * @param pass  the pass of the command it is part of, if any
+     * @param cache what the command's run shares with its {@code value_of}s, if it is part of one
+     */
+    ValueRun(@Nullable LivePass pass, @Nullable RunCache cache) {
         this.pass = pass;
+        this.cache = cache;
+    }
+
+    @Nullable RunCache cache() {
+        return cache;
     }
 
     @Nullable LivePass pass() {

@@ -57,6 +57,13 @@ public interface ScriptEngine<S> extends ScriptView<S> {
     LiveLine<S> compileLive(String command, S source, LivePolicy policy) throws CommandSyntaxException;
 
     /**
+     * Parses an already pre-processed command once, to be run as it stands over and over.
+     *
+     * @throws CommandSyntaxException if it does not parse to a command that can run
+     */
+    CompiledCommand<S> compile(String command, S source) throws CommandSyntaxException;
+
+    /**
      * Describes a failure raised while running {@code executedCommand}, with ranges mapped back
      * through {@code sourceMap} to {@code playerCommand}.
      */
