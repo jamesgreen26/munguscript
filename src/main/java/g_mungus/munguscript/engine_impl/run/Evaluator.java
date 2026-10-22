@@ -1,5 +1,6 @@
 package g_mungus.munguscript.engine_impl.run;
 
+import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import g_mungus.munguscript.engine.ScriptHost;
 import g_mungus.munguscript.engine_impl.argument.ValueOf;
@@ -35,16 +36,16 @@ public final class Evaluator<S> {
      */
     public @Nullable Object evaluate(ValueOf valueOf, TypeKey target, String owner, S source) {
         // Part of whatever live pass the command it is in is.
-        ValueRun run = new ValueRun(LivePass.of(host.runState(source)));
+        LivePass pass = LivePass.of(host.runState(source));
+        ValueRun run = new ValueRun(pass);
         S runSource = host.withRunState(source, run);
         ExpressionReader<S> expressions = reader.get();
-        ExpressionReader.Result<S> result = expressions.read(valueOf, owner, target, runSource);
-        if (result instanceof ExpressionReader.Result.Unreadable<S> unreadable) {
-            throw new ScriptFault(unreadable.reason(), valueOf.input(), unreadable.range());
-        }
-        ExpressionReader.Result.Readable<S> readable = (ExpressionReader.Result.Readable<S>) result;
+        // A live line reads each value_of once, and runs it again from that parse with this run's source.
+        ExpressionReader.Result.Readable<S> readable = pass == null ? read(expressions, valueOf, owner, target, runSource)
+                : pass.parses().get(valueOf, owner, target, () -> read(expressions, valueOf, owner, target, runSource));
+        ParseResults<S> parse = pass == null ? readable.parse() : Parses.withSource(readable.parse(), runSource);
         try {
-            expressions.dispatcher().execute(readable.parse());
+            expressions.dispatcher().execute(parse);
         } catch (ScriptFault fault) {
             throw fault.within(valueOf.input());
         } catch (CommandSyntaxException e) {
@@ -56,5 +57,15 @@ public final class Evaluator<S> {
             throw new ScriptFault("Could not use value_of(" + valueOf.expression() + ") as " + readable.as().path()
                     + ": " + Reasons.of(e), valueOf.input(), valueOf.range(), e);
         }
+    }
+
+    /** Reads {@code valueOf} where {@code owner} wants a {@code target}, failing if it cannot be. */
+    private static <S> ExpressionReader.Result.Readable<S> read(ExpressionReader<S> expressions, ValueOf valueOf,
+                                                                String owner, TypeKey target, S source) {
+        ExpressionReader.Result<S> result = expressions.read(valueOf, owner, target, source);
+        if (result instanceof ExpressionReader.Result.Unreadable<S> unreadable) {
+            throw new ScriptFault(unreadable.reason(), valueOf.input(), unreadable.range());
+        }
+        return (ExpressionReader.Result.Readable<S>) result;
     }
 }

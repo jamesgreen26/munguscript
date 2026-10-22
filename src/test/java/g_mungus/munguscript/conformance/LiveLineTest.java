@@ -52,6 +52,21 @@ class LiveLineTest {
         h.assertCalls(call("log", "6"));
     }
 
+    /** A value_of is read once for the line, but what it gives is worked out again each run. */
+    @EngineTest
+    void nestedValuesAreWorkedOutAgainEachRun(Harness h) throws CommandSyntaxException {
+        h.world.level = 2;
+        LiveLine<TestHost.Source> line = compile(h, "log value_of(level scale value_of(counter value))");
+        h.world.counter.value = 3;
+        run(h, line);
+        h.world.counter.value = 5;
+        run(h, line);
+        line.refresh(h.source());
+        h.world.counter.value = 7;
+        run(h, line);
+        h.assertCalls(call("log", "6"), call("log", "10"), call("log", "14"));
+    }
+
     @EngineTest
     void aRefreshRunsNoExecutorsButReadsEveryBranch(Harness h) throws CommandSyntaxException {
         h.world.level = 4;

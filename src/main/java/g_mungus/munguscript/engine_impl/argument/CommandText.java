@@ -2,6 +2,7 @@ package g_mungus.munguscript.engine_impl.argument;
 
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.arguments.ArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.StringRange;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -64,7 +65,32 @@ public final class CommandText {
                 && reader.canRead() && isQuote(reader.peek())) {
             return readQuoted(reader);
         }
+        if (literal instanceof IntegerArgumentType && hasPoint(reader)) {
+            // As Brigadier fails it, without Integer.parseInt throwing and filling in a stack trace first: a
+            // literal_of tries every double as an int before it reads it as one.
+            int start = reader.getCursor();
+            String number = number(reader);
+            reader.setCursor(start);
+            throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.readerInvalidInt().createWithContext(reader, number);
+        }
         return literal.parse(reader);
+    }
+
+    /** Whether the number at the cursor, as Brigadier reads one, has a decimal point, so is no int. */
+    private static boolean hasPoint(StringReader reader) {
+        int start = reader.getCursor();
+        boolean point = number(reader).indexOf('.') >= 0;
+        reader.setCursor(start);
+        return point;
+    }
+
+    /** The number at the cursor, as far as {@link StringReader#readInt} reads one, leaving the cursor after it. */
+    private static String number(StringReader reader) {
+        int start = reader.getCursor();
+        while (reader.canRead() && StringReader.isAllowedNumber(reader.peek())) {
+            reader.skip();
+        }
+        return reader.getString().substring(start, reader.getCursor());
     }
 
     /** Brigadier's {@link StringReader#readQuotedString}, also reading {@code \n} as a line break. */
